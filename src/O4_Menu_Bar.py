@@ -334,7 +334,7 @@ def install_menubar(window):
     m_tools.add_separator()
     _wire(m_tools, window, L("Vue Terre…", "Earth view…"),
           "open_earth_window")
-    _wire(m_tools, window, L("Simulateur d'aperçu…", "Preview simulator…"),
+    _wire(m_tools, window, L("Visualiseur de configuration…", "Configuration visualizer…"),
           "open_simulator_window")
     menubar.add_cascade(label=L("Outils", "Tools"), menu=m_tools)
 

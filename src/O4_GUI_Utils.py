@@ -100,7 +100,7 @@ except Exception:
     _scoremod_enabled = False
 
 # ── Module Simulateur visuel / Visualisation réglages (non bloquant) ──
-#  Fichier autonome : fenêtre Simulateur Ortho4XP V2 (onglets, canvas
+#  Fichier autonome : fenêtre Simulateur Ortho4XP V3 (onglets, canvas
 #  animés, curseurs cfg). Import non bloquant : si le module est absent
 #  ou défaillant, le GUI démarre normalement et le bouton le signale.
 #  AUCUN fichier du pipeline n'est concerné par ce module.

@@ -1,16 +1,22 @@
 # -*- coding: utf-8 -*-
+# ============================================================
+# Copyright (c) 2024-2026 Roland (Ypsos)
+#
+# CRÉDIT — AUTEUR : Roland (Ypsos) — Mars 2026
+# Module conçu et spécifié par Roland (Ypsos) pour Ortho4XP V3.
+# Cette notice d'auteur et de copyright doit être conservée
+# conformément à la GPLv3.
+# ============================================================
+# Copyright (c) 2024-2026 Roland (Ypsos)
+#
+# CREDIT — AUTHOR: Roland (Ypsos) — March 2026
+# Module designed and specified by Roland (Ypsos) for Ortho4XP V3.
+# This authorship and copyright notice must be retained
+# in accordance with GPLv3.
+# ============================================================
 """
-O4_Simulator_Utils.py — Simulateur visuel Ortho4XP V2 (module autonome)
-
-Fenêtre de visualisation / réglages des paramètres cfg (onglets Mer & Côte,
-Terrain & Relief, Mesh 3D, Imagerie & Aéroports) avec canvas animés.
-
-Import non bloquant depuis O4_GUI_Utils :
-  si ce module est absent ou défaillant, le GUI démarre normalement
-  et le bouton le signale.
-AUCUN fichier du pipeline n'est concerné par ce module.
+O4_Simulator_Utils.py — Simulateur visuel Ortho4XP V3 (module autonome)
 """
-
 import os
 import sys
 import tkinter as tk
@@ -27,7 +33,6 @@ import O4_File_Names as FNAMES
 import O4_Config_Utils as CFG
 from O4_Lang import tr
 
-# ── Thème (même palette que le GUI principal) ───────────────────────────
 _BG     = "#3b5b49"
 _FG     = "#e8f0ec"
 _FG2    = "#a6e3a1"
@@ -37,29 +42,25 @@ _CON_BG = "#0f0f1a"
 _CON_FG = "#50fa7b"
 _ACCENT = "#a6e3a1"
 
-
 def _reload_theme():
     global _BG, _FG, _FG2, _BTN_BG, _BTN_FG, _CON_BG, _CON_FG, _ACCENT
     try:
         import O4_Theme_Manager as _TM
         _t = _TM.get_theme()
-        _BG     = _t.get("bg",           _BG)
-        _FG     = _t.get("fg",           _FG)
+        _BG     = _t.get("bg", _BG)
+        _FG     = _t.get("fg", _FG)
         _FG2    = _t.get("fg_secondary", _FG2)
-        _BTN_BG = _t.get("btn_bg",       _BTN_BG)
-        _BTN_FG = _t.get("btn_fg",       _BTN_FG)
-        _CON_BG = _t.get("console_bg",   _CON_BG)
-        _CON_FG = _t.get("console_fg",   _CON_FG)
-        _ACCENT = _t.get("accent",       _ACCENT)
+        _BTN_BG = _t.get("btn_bg", _BTN_BG)
+        _BTN_FG = _t.get("btn_fg", _BTN_FG)
+        _CON_BG = _t.get("console_bg", _CON_BG)
+        _CON_FG = _t.get("console_fg", _CON_FG)
+        _ACCENT = _t.get("accent", _ACCENT)
     except Exception:
         pass
 
-
 _reload_theme()
 
-
 def _lighten(hexcol, factor=1.30):
-    """Éclaircit une couleur hex (#rrggbb)."""
     try:
         h = hexcol.lstrip("#")
         r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
@@ -70,10 +71,7 @@ def _lighten(hexcol, factor=1.30):
     except Exception:
         return hexcol
 
-
-def _ctk_button(parent, text=None, command=None, width=None,
-                corner_radius=8, **ttk_kw):
-    """Bouton texte style CustomTkinter ; repli ttk si CTk absent."""
+def _ctk_button(parent, text=None, command=None, width=None, corner_radius=8, **ttk_kw):
     if _HAS_CTK:
         try:
             import O4_Theme_Manager as _TM
@@ -89,8 +87,7 @@ def _ctk_button(parent, text=None, command=None, width=None,
             text_color=_t.get("btn_fg", "#ffffff"))
         if width:
             b.configure(width=width)
-        b.after_idle(
-            lambda btn=b, c=base: btn.winfo_exists() and btn.configure(fg_color=c))
+        b.after_idle(lambda btn=b, c=base: btn.winfo_exists() and btn.configure(fg_color=c))
         return b
     kw = {}
     if text is not None:
@@ -102,9 +99,8 @@ def _ctk_button(parent, text=None, command=None, width=None,
     kw.update(ttk_kw)
     return ttk.Button(parent, **kw)
 
-
 # ═══════════════════════════════════════════════════════════════════════════════
-# SIMULATEUR VISUEL — Ortho4XP V2  (Étape 1 : tous paramètres cfg)
+# SIMULATEUR VISUEL — Ortho4XP V3  (Étape 1 : tous paramètres cfg)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 # ── Images canvas simulateur Côte & Masques ──────────────────────
@@ -155,11 +151,27 @@ class Ortho4XP_Simulator(tk.Toplevel):
         self._tile.read_from_config()
         self._build_ui()
         self._load_values()
-        # Taille minimale = taille naturelle du contenu une fois l'UI construite.
-        # Empêche de réduire la fenêtre au point de masquer les boutons ;
-        # l'agrandissement reste libre (resizable True/True conservé).
+        # Taille adaptée à l'écran : la fenêtre doit toujours laisser les
+        # boutons du bas accessibles, même sur un moniteur de faible hauteur.
+        # On ne prend PAS la hauteur naturelle de tous les onglets comme
+        # minsize : certains onglets contiennent volontairement beaucoup de
+        # réglages et pourraient pousser les boutons hors de l'écran.
         self.update_idletasks()
-        self.minsize(self.winfo_reqwidth(), self.winfo_reqheight())
+        try:
+            sw = self.winfo_screenwidth()
+            sh = self.winfo_screenheight()
+            # Plus large (vignettes à droite), hauteur limitée à l'écran
+            # pour garder les boutons du bas accessibles (réf. onglet Mer).
+            win_w = min(1280, max(1000, sw - 40))
+            win_h = min(int(sh * 0.88), max(520, sh - 80))
+            x = max(0, (sw - win_w) // 2)
+            y = max(10, (sh - win_h) // 2)
+            self.geometry(f"{win_w}x{win_h}+{x}+{y}")
+            self.minsize(960, 520)
+            self.maxsize(sw - 10, sh - 30)
+        except Exception:
+            self.geometry("1200x640")
+            self.minsize(960, 520)
         self._anim_loop()
 
     def _on_close(self):
@@ -176,14 +188,12 @@ class Ortho4XP_Simulator(tk.Toplevel):
             pass
         fs = lambda x: int(x * s)
 
-        # Grille principale : titre / onglets / statut / boutons
         self.configure(bg=self.BG)
         self.columnconfigure(0, weight=1)
         self.rowconfigure(1, weight=1)
 
-        # Ligne 0 — titre
         hdr = tk.Frame(self, bg=self.BG)
-        hdr.grid(row=0, column=0, sticky="ew", padx=10, pady=8)
+        hdr.grid(row=0, column=0, sticky="ew", padx=8, pady=4)
         tk.Label(hdr, text="Simulateur visuel — Ortho4XP V2",
             bg=self.BG, fg=self.FG2,
             font=("TkFixedFont", fs(13), "bold")).pack(side="left")
@@ -191,14 +201,6 @@ class Ortho4XP_Simulator(tk.Toplevel):
             text=tr("tuile ") + f"{self.lat:+d}/{self.lon:+d}",
             bg=self.BG, fg=self.FG3,
             font=("TkFixedFont", fs(10))).pack(side="left", padx=12)
-
-        # Ligne 1 — notebook (prend tout l'espace vertical restant)
-        try:
-            style = ttk.Style()
-            style.configure("Sim.TNotebook", background=self.BG)
-            style.configure("Sim.TNotebook.Tab", padding=(12, 4))
-        except Exception:
-            pass
 
         nb = ttk.Notebook(self)
         nb.grid(row=1, column=0, sticky="nsew", padx=6, pady=4)
@@ -213,20 +215,16 @@ class Ortho4XP_Simulator(tk.Toplevel):
             nb.add(err, text="Erreur")
             tk.Label(err, text=tr("Erreur construction onglets : ") + str(e),
                 bg=self.BG2, fg="#ff6b6b",
-                font=("TkFixedFont", 11), justify="left").pack(
-                anchor="w", padx=12, pady=12)
+                font=("TkFixedFont", 11), justify="left").pack(anchor="w", padx=12, pady=12)
 
-        # Ligne 2 — statut (sous les onglets, au-dessus des boutons)
         status_fr = tk.Frame(self, bg=self.BG)
         status_fr.grid(row=2, column=0, sticky="ew", padx=10, pady=2)
         self._status = tk.Label(status_fr, text="", bg=self.BG,
             fg=self.FG2, font=("TkFixedFont", fs(10)))
         self._status.pack(side="left")
 
-        # Ligne 3 — boutons uniquement
         btn_fr = tk.Frame(self, bg=self.BG)
-        btn_fr.grid(row=3, column=0, sticky="ew", padx=10, pady=8)
-
+        btn_fr.grid(row=3, column=0, sticky="ew", padx=8, pady=4)
         _ctk_button(btn_fr, text=tr("↺  Recharger depuis cfg"),
             command=self._load_values).pack(side="left", padx=4)
         _ctk_button(btn_fr, text=tr("✅  Écrire cfg tuile"),
@@ -236,32 +234,182 @@ class Ortho4XP_Simulator(tk.Toplevel):
         _ctk_button(btn_fr, text=tr("✖  Fermer"),
             command=self._on_close).pack(side="right", padx=4)
 
-        # Taille de départ confortable
-        try:
-            self.geometry("1100x780")
-        except Exception:
-            pass
+        # La géométrie est calculée après construction de l'UI dans __init__
+        # afin de tenir compte de la hauteur réelle du moniteur.
 
-    # ── Helper : créer un onglet avec canvas en haut + curseurs en bas ─
-    def _make_tab(self, nb, title, canvas_height=320):
+    def _make_scrollable(self, parent, row=0):
+        """Zone défilante verticale (ascenseur à droite) pour les curseurs."""
+        wrap = tk.Frame(parent, bg=self.BG2)
+        wrap.grid(row=row, column=0, sticky="nsew", padx=4, pady=(0, 2))
+        parent.rowconfigure(row, weight=1)
+        parent.columnconfigure(0, weight=1)
+
+        canvas = tk.Canvas(wrap, bg=self.BG2, highlightthickness=0)
+        vsb = ttk.Scrollbar(wrap, orient="vertical", command=canvas.yview)
+        canvas.configure(yscrollcommand=vsb.set)
+        vsb.pack(side="right", fill="y")
+        canvas.pack(side="left", fill="both", expand=True)
+
+        inner = tk.Frame(canvas, bg=self.BG2)
+        win = canvas.create_window((0, 0), window=inner, anchor="nw")
+
+        def _on_inner_configure(_e=None):
+            canvas.configure(scrollregion=canvas.bbox("all"))
+        def _on_canvas_configure(e):
+            canvas.itemconfigure(win, width=e.width)
+        inner.bind("<Configure>", _on_inner_configure)
+        canvas.bind("<Configure>", _on_canvas_configure)
+
+        def _on_mousewheel(e):
+            # macOS: e.delta ; Linux: Button-4/5
+            if getattr(e, "delta", 0):
+                canvas.yview_scroll(int(-1 * (e.delta / 120)), "units")
+            elif getattr(e, "num", None) == 4:
+                canvas.yview_scroll(-1, "units")
+            elif getattr(e, "num", None) == 5:
+                canvas.yview_scroll(1, "units")
+
+        def _bind_wheel(_e=None):
+            canvas.bind_all("<MouseWheel>", _on_mousewheel)
+            canvas.bind_all("<Button-4>", _on_mousewheel)
+            canvas.bind_all("<Button-5>", _on_mousewheel)
+        def _unbind_wheel(_e=None):
+            canvas.unbind_all("<MouseWheel>")
+            canvas.unbind_all("<Button-4>")
+            canvas.unbind_all("<Button-5>")
+        canvas.bind("<Enter>", _bind_wheel)
+        canvas.bind("<Leave>", _unbind_wheel)
+        inner.bind("<Enter>", _bind_wheel)
+        inner.bind("<Leave>", _unbind_wheel)
+
+        inner.columnconfigure(0, weight=1)
+        return inner
+
+
+    def _bind_mousewheel_tree(self, widget, scroll_canvas):
+        """Propage la molette vers le canvas de défilement (petit moniteur)."""
+        def _on_mw(e, _c=scroll_canvas):
+            try:
+                if getattr(e, "delta", 0):
+                    d = e.delta
+                    _c.yview_scroll(int(-1 * (d / 120 if abs(d) >= 120 else d)), "units")
+                elif getattr(e, "num", None) == 4:
+                    _c.yview_scroll(-1, "units")
+                elif getattr(e, "num", None) == 5:
+                    _c.yview_scroll(1, "units")
+            except Exception:
+                pass
+        def _bind(w):
+            try:
+                w.bind("<MouseWheel>", _on_mw, add="+")
+                w.bind("<Button-4>", _on_mw, add="+")
+                w.bind("<Button-5>", _on_mw, add="+")
+            except Exception:
+                pass
+            try:
+                for ch in w.winfo_children():
+                    _bind(ch)
+            except Exception:
+                pass
+        _bind(widget)
+
+    def _make_tab(self, nb, title, canvas_height=170, inline=False):
+        """
+        inline=False (défaut) : comportement historique — une seule zone
+            d'explication sous le canvas, alimentée au survol des curseurs.
+            (Utilisé par l'onglet Terrain & Relief, inchangé.)
+        inline=True : plus d'espace entre le canvas (montage) et les réglages
+            (séparateur), et l'explication s'affiche en permanence sous chaque
+            curseur (exp_lbl renvoyé = None ; passer inline_hint=True à
+            _add_group).
+        """
         frame = tk.Frame(nb, bg=self.BG2)
         nb.add(frame, text=title)
         frame.columnconfigure(0, weight=1)
-        frame.rowconfigure(0, weight=0)  # canvas fixe
-        frame.rowconfigure(1, weight=1)  # curseurs extensibles
 
         # Canvas en haut — pleine largeur
         cv_frame = tk.Frame(frame, bg=_CON_BG, relief="flat", bd=1)
-        cv_frame.grid(row=0, column=0, sticky="ew", padx=8, pady=(8,4))
+        cv_frame.grid(row=0, column=0, sticky="ew", padx=6, pady=(4, 2))
         cv = tk.Canvas(cv_frame, bg=_CON_BG,
             highlightthickness=0, height=canvas_height)
         cv.pack(fill="both", expand=True)
         # Forcer redraw quand le canvas est redimensionné
         cv.bind("<Configure>", lambda e: self.after(10, self._redraw_all))
 
-        # Zone curseurs en bas — frame fixe, sans scrollbar
+        if inline:
+            # Canvas fixe en haut ; zone curseurs défilante + ascenseur à droite
+            # (indispensable sur petit moniteur pour atteindre les curseurs du bas)
+            frame.rowconfigure(0, weight=0)
+            frame.rowconfigure(1, weight=0)
+            frame.rowconfigure(2, weight=1)
+            frame.columnconfigure(0, weight=1)
+
+            sep_fr = tk.Frame(frame, bg=self.BG2)
+            sep_fr.grid(row=1, column=0, sticky="ew", padx=6, pady=(2, 2))
+            tk.Frame(sep_fr, bg=self.BG3, height=1).pack(fill="x")
+
+            scroll_host = tk.Frame(frame, bg=self.BG2)
+            scroll_host.grid(row=2, column=0, sticky="nsew", padx=2, pady=(0, 1))
+            scroll_host.columnconfigure(0, weight=1)
+            scroll_host.rowconfigure(0, weight=1)
+
+            sc_canvas = tk.Canvas(scroll_host, bg=self.BG2,
+                highlightthickness=0, borderwidth=0)
+            vbar = ttk.Scrollbar(scroll_host, orient="vertical",
+                command=sc_canvas.yview)
+            sc_canvas.configure(yscrollcommand=vbar.set)
+            sc_canvas.grid(row=0, column=0, sticky="nsew")
+            vbar.grid(row=0, column=1, sticky="ns")
+
+            inner = tk.Frame(sc_canvas, bg=self.BG2)
+            inner.columnconfigure(0, weight=1)
+            inner_id = sc_canvas.create_window((0, 0), window=inner, anchor="nw")
+
+            def _on_inner_configure(_e=None, _c=sc_canvas, _i=inner):
+                try:
+                    _c.configure(scrollregion=_c.bbox("all"))
+                    # largeur = canvas visible
+                    _c.itemconfigure(inner_id, width=_c.winfo_width())
+                except Exception:
+                    pass
+
+            def _on_sc_configure(e, _c=sc_canvas):
+                try:
+                    _c.itemconfigure(inner_id, width=e.width)
+                except Exception:
+                    pass
+
+            def _on_mousewheel(e, _c=sc_canvas):
+                # macOS: delta en unités, Windows: multiple de 120
+                try:
+                    if getattr(e, "delta", 0):
+                        _c.yview_scroll(int(-1 * (e.delta / 120 if abs(e.delta) >= 120 else e.delta)), "units")
+                    elif getattr(e, "num", None) == 4:
+                        _c.yview_scroll(-1, "units")
+                    elif getattr(e, "num", None) == 5:
+                        _c.yview_scroll(1, "units")
+                except Exception:
+                    pass
+
+            inner.bind("<Configure>", _on_inner_configure)
+            sc_canvas.bind("<Configure>", _on_sc_configure)
+            # Molette : lier au canvas de scroll et à l'inner
+            for w in (sc_canvas, inner):
+                w.bind("<MouseWheel>", _on_mousewheel)
+                w.bind("<Button-4>", _on_mousewheel)
+                w.bind("<Button-5>", _on_mousewheel)
+
+            # Mémoriser pour rebind molette sur les enfants plus tard
+            frame._scroll_canvas = sc_canvas
+            frame._scroll_inner = inner
+
+            return cv, inner, None
+
+        frame.rowconfigure(0, weight=0)
+        frame.rowconfigure(1, weight=1)
+
         inner = tk.Frame(frame, bg=self.BG2)
-        inner.grid(row=1, column=0, sticky="nsew", padx=8, pady=(0,4))
+        inner.grid(row=1, column=0, sticky="nsew", padx=4, pady=(0, 1))
         inner.columnconfigure(0, weight=1)
 
         # Explication dynamique — sous le canvas
@@ -277,46 +425,60 @@ class Ortho4XP_Simulator(tk.Toplevel):
         return cv, inner, exp_lbl
 
     # ── Helper : ajouter un groupe + curseurs ─────────────────────────
-    def _add_group(self, parent, title, sliders, exp_lbl, fs=lambda x:x):
+    def _add_group(self, parent, title, sliders, exp_lbl, fs=lambda x:x,
+                   inline_hint=False, row_hints=None):
+        """
+        Chaque ligne = [bloc gauche: curseur + explication collée] | [vignette]
+        L'explication est DANS le bloc gauche, juste sous le curseur,
+        pour ne pas être poussée par la hauteur de la vignette.
+        """
+        if row_hints is None:
+            row_hints = {}
         grp = tk.LabelFrame(parent, text=title,
             bg=self.BG3, fg=self.FG2,
             font=("TkFixedFont", fs(10), "bold"),
-            padx=6, pady=4)
-        grp.pack(fill="x", padx=6, pady=(4,2))
-        grp.columnconfigure(0, weight=0)
-        grp.columnconfigure(1, weight=1)
-        grp.columnconfigure(2, weight=0)
+            padx=3, pady=1)
+        grp.pack(fill="x", padx=3, pady=(1, 0))
+        grp.columnconfigure(0, weight=1)
+        grp.columnconfigure(1, weight=0)
 
         for row_i, (key, label, vmin, vmax, step, typ, hint, values) \
                 in enumerate(sliders):
 
-            tk.Label(grp, text=label, bg=self.BG3, fg=self.FG,
-                font=("TkFixedFont", fs(9)), width=18,
-                anchor="e").grid(row=row_i, column=0,
-                padx=(2,6), pady=2, sticky="e")
+            # Bloc gauche : label + contrôle + valeur + explication collée
+            left = tk.Frame(grp, bg=self.BG3)
+            left.grid(row=row_i, column=0, sticky="ew", padx=(0, 4), pady=(2, 2))
+            left.columnconfigure(1, weight=1)
 
-            val_lbl = tk.Label(grp, text="—", bg=self.BG3,
+            tk.Label(left, text=label, bg=self.BG3, fg=self.FG,
+                font=("TkFixedFont", fs(10)), width=16,
+                anchor="e").grid(row=0, column=0, padx=(2, 4), sticky="e")
+
+            val_lbl = tk.Label(left, text="—", bg=self.BG3,
                 fg=self.ACC, font=("TkFixedFont", fs(10), "bold"),
                 width=7)
-            val_lbl.grid(row=row_i, column=2, padx=4, sticky="w")
+            val_lbl.grid(row=0, column=2, padx=2, sticky="w")
 
             if values:
-                # Combobox pour les valeurs discrètes
                 var = tk.StringVar()
                 self._vars[key] = var
-                cb = ttk.Combobox(grp, values=values,
+                cb = ttk.Combobox(left, values=values,
                     textvariable=var, state="readonly", width=12)
-                cb.grid(row=row_i, column=1, padx=2, pady=2,
-                    sticky="ew")
+                cb.grid(row=0, column=1, padx=2, sticky="ew")
                 val_lbl.config(textvariable=var)
-
-                def _cb_hint(e, h=hint, lbl=exp_lbl):
-                    lbl.config(text=h)
-                cb.bind("<<ComboboxSelected>>", _cb_hint)
-                cb.bind("<Enter>",
-                    lambda e, h=hint, lbl=exp_lbl: lbl.config(text=h))
+                if exp_lbl is not None:
+                    def _cb_hint(e, h=hint, lbl=exp_lbl):
+                        lbl.config(text=h)
+                    cb.bind("<<ComboboxSelected>>", _cb_hint)
+                    cb.bind("<Enter>",
+                        lambda e, h=hint, lbl=exp_lbl: lbl.config(text=h))
+                def _cb_redraw(_e=None):
+                    try:
+                        self.after_idle(self._redraw_all)
+                    except Exception:
+                        pass
+                cb.bind("<<ComboboxSelected>>", _cb_redraw, add="+")
             else:
-                # Slider
                 if typ == int:
                     var = tk.IntVar()
                 else:
@@ -326,29 +488,71 @@ class Ortho4XP_Simulator(tk.Toplevel):
                 def _make_cb(lbl, k, t):
                     def cb(*_):
                         v = self._vars[k].get()
-                        lbl.config(text=str(v) if t==int
+                        lbl.config(text=str(v) if t == int
                             else f"{v:.3f}".rstrip('0').rstrip('.'))
                     return cb
 
                 var.trace_add("write", _make_cb(val_lbl, key, typ))
+                def _redraw_hint(*_a, _k=key):
+                    try:
+                        self.after_idle(self._redraw_all)
+                    except Exception:
+                        pass
+                try:
+                    var.trace_add("write", _redraw_hint)
+                except Exception:
+                    pass
 
-                sl = tk.Scale(grp,
+                sl = tk.Scale(left,
                     from_=vmin, to=vmax, resolution=step,
                     orient=HORIZONTAL, variable=var,
                     bg=self.BG3, fg=self.FG,
                     troughcolor=self.TROUGH,
                     highlightthickness=0, showvalue=False,
                     length=320)
-                sl.grid(row=row_i, column=1, padx=2, pady=1,
-                    sticky="ew")
-                sl.bind("<Enter>",
-                    lambda e, h=hint, lbl=exp_lbl: lbl.config(text=h))
+                sl.grid(row=0, column=1, padx=2, sticky="ew")
+                if exp_lbl is not None:
+                    sl.bind("<Enter>",
+                        lambda e, h=hint, lbl=exp_lbl: lbl.config(text=h))
+
+            # Explication collée sous le curseur + ligne vide avant le suivant
+            # (même aération que l'onglet Mesh 3D, tous onglets)
+            if inline_hint:
+                one = " ".join(str(hint).split())
+                tk.Label(left, text=one, bg=self.BG3, fg=self.FG,
+                    font=("TkFixedFont", fs(9)),
+                    justify="left", anchor="w"
+                    ).grid(row=1, column=0, columnspan=3,
+                    padx=(4, 2), pady=(1, 0), sticky="w")
+                # Ligne vierge sous l'explication
+                tk.Frame(left, bg=self.BG3, height=8).grid(
+                    row=2, column=0, columnspan=3, sticky="ew")
+
+            # Vignette à droite
+            if key in row_hints:
+                ck = row_hints[key]
+                cnv = tk.Canvas(grp, bg="#0a140a", highlightthickness=1,
+                    highlightbackground="#3a5a40", width=190, height=84)
+                cnv.grid(row=row_i, column=1, padx=(20, 4), pady=2, sticky="ne")
+                self._canvases[ck] = cnv
 
     # ══════════════════════════════════════════════════════════════════
     # ONGLET 1 — MER, CÔTE & MASQUES (fusionné)
     # ══════════════════════════════════════════════════════════════════
+        # Molette active aussi sur les curseurs (petit moniteur)
+        try:
+            top = parent
+            while top is not None:
+                sc = getattr(top, "_scroll_canvas", None)
+                if sc is not None:
+                    self._bind_mousewheel_tree(grp, sc)
+                    break
+                top = getattr(top, "master", None)
+        except Exception:
+            pass
+
     def _tab_mer_cote(self, nb, fs):
-        cv, inner, exp_lbl = self._make_tab(nb, tr("🌊 Mer & Côte"))
+        cv, inner, exp_lbl = self._make_tab(nb, tr("🌊 Mer & Côte"), inline=True)
         self._canvases["mer"] = cv
         self._canvases["cote"] = cv  # même canvas partagé
 
@@ -366,7 +570,12 @@ class Ortho4XP_Simulator(tk.Toplevel):
             ("water_smoothing","water_smoothing",0, 5,    1,    int,
              tr('water_smoothing : lissage du maillage eau intérieure. 2 = recommandé.'), None),
         ]
-        self._add_group(inner, tr("Eau & Transparence"), sliders_eau, exp_lbl, fs)
+        self._add_group(inner, tr("Eau & Transparence"), sliders_eau, exp_lbl, fs,
+                        inline_hint=True, row_hints={
+                            "ratio_bathy": "mer_hint_bathy",
+                            "overlay_lod": "mer_hint_lod",
+                            "water_smoothing": "mer_hint_smooth",
+                        })
 
         # ── Groupe 2 : Masques côtiers ──────────────────────────────
         sliders_cote = [
@@ -381,14 +590,18 @@ class Ortho4XP_Simulator(tk.Toplevel):
              tr('imprint_masks_to_dds : grave le canal alpha dans le DDS (BC3). True = nécessaire pour transparence XP12 (recommandé). ⚠ False + water_tech=XP12 = jointures visibles.'),
              ["True","False"]),
         ]
-        self._add_group(inner, tr("Masques côtiers"), sliders_cote, exp_lbl, fs)
+        self._add_group(inner, tr("Masques côtiers"), sliders_cote, exp_lbl, fs,
+                        inline_hint=True, row_hints={
+                            "masks_width": "mer_hint_maskwz",
+                        })
 
         sliders_inland = [
             ("use_masks_for_inland","use_inland", 0, 0, 1, str,
              tr('use_masks_for_inland : applique les masques côtiers sur lacs et rivières. False = recommandé (économise VRAM). True = masque lac visible dans le canvas ci-dessus.'),
              ["False","True"]),
         ]
-        self._add_group(inner, tr("Lacs & Rivières"), sliders_inland, exp_lbl, fs)
+        self._add_group(inner, tr("Lacs & Rivières"), sliders_inland, exp_lbl, fs,
+                        inline_hint=True)
 
         # ── Compatibilité XP12 : bloquer options incompatibles ──────
         self._setup_xp12_compatibility()
@@ -397,62 +610,121 @@ class Ortho4XP_Simulator(tk.Toplevel):
     # ONGLET 3 — TERRAIN & RELIEF
     # ══════════════════════════════════════════════════════════════════
     def _tab_terrain(self, nb, fs):
-        cv, inner, exp_lbl = self._make_tab(nb, tr("⛰ Terrain & Relief"))
+        """
+        Canvas principal + bande d'animations :
+          normal_map_strength | terrain_casts_shadows | fill_nodata
+        puis curseurs.
+        """
+        frame = tk.Frame(nb, bg=self.BG2)
+        nb.add(frame, text=tr("⛰ Terrain & Relief"))
+        frame.columnconfigure(0, weight=1)
+        frame.rowconfigure(0, weight=0)
+        frame.rowconfigure(1, weight=1)
+        frame.rowconfigure(2, weight=0)
+
+        cv_frame = tk.Frame(frame, bg=_CON_BG, relief="flat", bd=1)
+        cv_frame.grid(row=0, column=0, sticky="ew", padx=6, pady=(4, 2))
+        cv = tk.Canvas(cv_frame, bg=_CON_BG, highlightthickness=0, height=220)
+        cv.pack(fill="both", expand=True)
+        cv.bind("<Configure>", lambda e: self.after(10, self._redraw_all))
         self._canvases["terrain"] = cv
+
+        inner = tk.Frame(frame, bg=self.BG2)
+        inner.grid(row=1, column=0, sticky="nsew", padx=4, pady=(0, 1))
+        inner.columnconfigure(0, weight=1)
+
+        exp_fr = tk.Frame(frame, bg=self.BG)
+        exp_fr.grid(row=2, column=0, sticky="ew", padx=8, pady=(0, 2))
+        exp_lbl = tk.Label(exp_fr, text=tr("Survolez un curseur."),
+            bg=self.BG, fg=self.FG3, font=("TkFixedFont", 9),
+            wraplength=900, justify="left", anchor="w")
+        exp_lbl.pack(fill="both", expand=True, padx=4, pady=3)
 
         sliders = [
             ("normal_map_strength","normal_map",  0, 2,   0.1,  float,
-             tr("normal_map_strength : intensité de l'ombrage terrain. 0 = terrain plat visuellement. 1.0 = ombrage exact (recommandé). 2.0 = ombrage très marqué, peut sembler exagéré sur terrain plat."), None),
+             tr("normal_map_strength : intensité de l'ombrage terrain. 0 = terrain plat visuellement. 1.0 = ombrage exact (recommandé). 2.0 = ombrage très marqué."), None),
             ("terrain_casts_shadows","ombres terrain",0,0,1,str,
-             tr('terrain_casts_shadows : le terrain projette des ombres sur lui-même. True = ombres réalistes (recommandé). False = moins réaliste mais gain de performances.'),
+             tr('terrain_casts_shadows : le terrain projette des ombres. True = ombres réalistes (recommandé). False = gain perfs, moins réaliste.'),
              ["True","False"]),
             ("use_decal_on_terrain",tr('décals terrain'),0,0,1,str,
-             tr('use_decal_on_terrain : applique des décals de texture (herbe/roche) sur le terrain pour améliorer le rendu au sol à basse altitude. True = recommandé pour la Vendée.'),
+             tr('use_decal_on_terrain : décals herbe/roche au sol. True = recommandé.'),
              ["True","False"]),
             ("fill_nodata",    "fill_nodata",    0, 0,    1,    str,
-             tr('fill_nodata : remplit les zones sans données altimétriques par interpolation du voisin le plus proche. True = recommandé pour les DEM avec trous sur la mer.'),
+             tr('fill_nodata : comble les trous du DEM par interpolation. True = recommandé si le DEM a des trous.'),
              ["True","False"]),
             ("min_area",       "min_area (°²)",  0.00001,0.01,0.00001,float,
-             tr("min_area : surface minimum d'un polygone vectoriel (en degrés²). Les polygones plus petits sont ignorés. 0.0001 = recommandé (élimine les micro-polygones parasites)."), None),
+             tr("min_area : surface mini d'un polygone vectoriel. 0.0001 = recommandé."), None),
             ("max_area",       "max_area (°²)",  1,200,  5,    float,
-             tr("max_area : surface maximum d'un polygone vectoriel. Les polygones plus grands sont découpés. 100 = recommandé."), None),
+             tr("max_area : surface max d'un polygone. 100 = recommandé."), None),
             ("water_simplification","water_simpl",0,1,  0.05, float,
-             tr('water_simplification : simplification des polygones eau. 0 = pas de simplification (précis). 0.5 = simplification modérée. 1.0 = très simplifié (rapide mais moins précis).'), None),
+             tr('water_simplification : simplification des polygones eau. 0 = précis, 1 = très simplifié.'), None),
         ]
-        self._add_group(inner, tr("Terrain & Ombrage"), sliders[:3], exp_lbl, fs)
-        self._add_group(inner, tr("Altimétrie & Vecteurs"), sliders[3:], exp_lbl, fs)
-
+        self._add_group(inner, tr("Terrain & Ombrage"), sliders[:3], exp_lbl, fs,
+                        inline_hint=True, row_hints={
+                            "normal_map_strength": "terrain_hint_nm",
+                            "terrain_casts_shadows": "terrain_hint_shadow",
+                        })
+        self._add_group(inner, tr("Altimétrie & Vecteurs"), sliders[3:], exp_lbl, fs,
+                        inline_hint=True, row_hints={
+                            "fill_nodata": "terrain_hint_nodata",
+                            "min_area": "terrain_hint_minarea",
+                            "max_area": "terrain_hint_maxarea",
+                            "water_simplification": "terrain_hint_wsimpl",
+                        })
 
     # ══════════════════════════════════════════════════════════════════
     # ONGLET 4 — MESH 3D
     # ══════════════════════════════════════════════════════════════════
     def _tab_mesh(self, nb, fs):
-        cv, inner, exp_lbl = self._make_tab(nb, tr("🗺 Mesh 3D"))
+        """Canvas + curseurs avec mini-animations à droite de chaque option."""
+        frame = tk.Frame(nb, bg=self.BG2)
+        nb.add(frame, text=tr("🗺 Mesh 3D"))
+        frame.columnconfigure(0, weight=1)
+        frame.rowconfigure(0, weight=0)
+        frame.rowconfigure(1, weight=1)
+
+        cv_frame = tk.Frame(frame, bg=_CON_BG, relief="flat", bd=1)
+        cv_frame.grid(row=0, column=0, sticky="ew", padx=6, pady=(4, 2))
+        cv = tk.Canvas(cv_frame, bg=_CON_BG, highlightthickness=0, height=240)
+        cv.pack(fill="both", expand=True)
+        cv.bind("<Configure>", lambda e: self.after(10, self._redraw_all))
         self._canvases["mesh"] = cv
+
+        inner = tk.Frame(frame, bg=self.BG2)
+        inner.grid(row=1, column=0, sticky="nsew", padx=4, pady=(0, 1))
+        inner.columnconfigure(0, weight=1)
+        exp_lbl = None
 
         sliders = [
             ("mesh_zl",        "mesh_zl",        14,20,  1,    int,
              tr('mesh_zl : zoom level du maillage 3D. 14-16 = mesh grossier, relief approximatif. 19 = mesh très précis, côtes et falaises détaillées (recommandé). 20 = très lourd, rarement nécessaire.'), None),
-            ("curvature_tol",  "curvature_tol",  1,30,   0.5,  float,
-             tr('curvature_tol : tolérance de courbure générale du mesh. Valeur basse = plus de triangles, relief plus précis. 16 = recommandé. 1 = très dense (lent). 30 = grossier.'), None),
+            ("curvature_tol",  "curvature_tol",  30,1,   0.5,  float,
+             tr('curvature_tol : à GAUCHE (30) = pentes simplifiées, relief grossier. À DROITE (1) = le mesh épouse mieux les courbes du relief (plus détaillé, plus lourd). 16 = recommandé.'), None),
             ("limit_tris",     "limit_tris (M)", 1,50,   1,    float,
-             tr('limit_tris : limite du nombre de triangles en millions. 15 = recommandé. Augmenter pour les zones très complexes.'), None),
+             tr('limit_tris : plafond du nombre de triangles (millions). Gauche = peu de triangles autorisés, maillage incomplet. Droite = assez de triangles pour tout le relief. 15 = recommandé.'), None),
             ("min_angle",      "min_angle (°)",  0.1,2,  0.1,  float,
-             tr('min_angle : angle minimum des triangles du mesh. 0.5 = recommandé. Valeur basse = meilleure qualité géométrique.'), None),
+             tr('min_angle : angle mini des triangles. GAUCHE (0.1°) = triangles très étroits autorisés. DROITE (2°) = triangles plus réguliers seulement. 0.5 = recommandé.'), None),
             ("iterate",        "iterate",        0, 3,   1,    int,
-             tr("iterate : nombre d'itérations de raffinement du mesh. 0 = pas d'itération (rapide). 1-2 = meilleure qualité côtière. 3 = très long."), None),
+             tr("iterate : passes de raffinement. 0 = une seule passe (rapide). 1-2 = affine côtes/relief. 3 = très long. Chaque cran = une passe de plus."), None),
             ("clean_bad_geometries","clean_geom",0,0,   1,    str,
              tr('clean_bad_geometries : supprime les géométries vectorielles invalides avant la triangulation. True = recommandé.'),
              ["True","False"]),
         ]
-        self._add_group(inner, tr("Paramètres Mesh"), sliders[:4], exp_lbl, fs)
-        self._add_group(inner, tr("Qualité & Nettoyage"), sliders[4:], exp_lbl, fs)
+        self._add_group(inner, tr("Paramètres Mesh"), sliders[:4], exp_lbl, fs,
+                        inline_hint=True, row_hints={
+                            "curvature_tol": "mesh_hint_curv",
+                            "min_angle": "mesh_hint_angle",
+                        })
+        self._add_group(inner, tr("Qualité & Nettoyage"), sliders[4:], exp_lbl, fs,
+                        inline_hint=True, row_hints={
+                            "iterate": "mesh_hint_iter",
+                        })
 
     # ══════════════════════════════════════════════════════════════════
     # ONGLET 5 — IMAGERIE & AÉROPORTS
     # ══════════════════════════════════════════════════════════════════
     def _tab_imagerie(self, nb, fs):
-        cv, inner, exp_lbl = self._make_tab(nb, tr("📷 Imagerie & Aéroports"))
+        cv, inner, exp_lbl = self._make_tab(nb, tr("📷 Imagerie & Aéroports"), canvas_height=280, inline=True)
         self._canvases["imagerie"] = cv
 
         sliders = [
@@ -466,19 +738,28 @@ class Ortho4XP_Simulator(tk.Toplevel):
              tr('cover_airports_with_highres : active la haute résolution autour des aéroports. True = recommandé si un aéroport est présent sur la tuile.'),
              ["False","True"]),
             ("apt_smoothing_pix","apt_smooth (px)",0,30, 1,   int,
-             tr('apt_smoothing_pix : lissage en pixels de la zone aéroport dans le mesh. 8 = recommandé pour éviter les bosses sur les pistes.'), None),
+             tr('apt_smoothing_pix : lissage de la piste dans le mesh. 0 = bosses possibles. 8 = piste plate (recommandé). 30 = très lissé.'), None),
             ("apt_curv_tol",   "apt_curv_tol",   0.5,5, 0.5,  float,
-             tr('apt_curv_tol : tolérance de courbure spécifique aux aéroports. 1.5 = recommandé. Valeur basse = géométrie aéroport plus précise.'), None),
+             tr('apt_curv_tol : précision du contour aéroport. Bas = suit bien les virages de piste. Haut = contour simplifié.'), None),
             ("apt_curv_ext",   "apt_curv_ext (km)",0.5,3,0.5, float,
              tr('apt_curv_ext : extension de la zone de précision autour des aéroports. 1.0 = recommandé.'), None),
             ("road_level",     "road_level",     0, 4,   1,    int,
              tr('road_level : densité des routes intégrées dans le mesh. 0 = aucune route. 4 = toutes les routes (recommandé).'), None),
             ("max_levelled_segs","levelled_segs",0,500000,10000,int,
-             tr('max_levelled_segs : nombre maximum de segments de route nivelés. 200000 = recommandé.'), None),
+             tr('max_levelled_segs : combien de segments de route peuvent être aplatis. Bas = peu de routes plates. Haut = beaucoup de routes nivelées.'), None),
         ]
-        self._add_group(inner, tr("Imagerie"), sliders[:4], exp_lbl, fs)
-        self._add_group(inner, tr("Aéroports"), sliders[4:7], exp_lbl, fs)
-        self._add_group(inner, tr("Routes"), sliders[7:], exp_lbl, fs)
+        self._add_group(inner, tr("Imagerie"), sliders[:4], exp_lbl, fs,
+                        inline_hint=True)
+        self._add_group(inner, tr("Aéroports"), sliders[4:7], exp_lbl, fs,
+                        inline_hint=True, row_hints={
+                            "apt_smoothing_pix": "img_hint_smooth",
+                            "apt_curv_tol": "img_hint_curv",
+                        })
+        self._add_group(inner, tr("Routes"), sliders[7:], exp_lbl, fs,
+                        inline_hint=True, row_hints={
+                            "max_levelled_segs": "img_hint_segs",
+                        })
+
 
     # ── Forcer redraw de tous les canvas ────────────────────────────
     def _redraw_all(self):
@@ -489,7 +770,6 @@ class Ortho4XP_Simulator(tk.Toplevel):
             except Exception:
                 pass
 
-    # ── Animation canvas (simple, non bloquant) ────────────────────
     def _anim_loop(self):
         if not self._anim_running:
             return
@@ -751,6 +1031,14 @@ class Ortho4XP_Simulator(tk.Toplevel):
         }
         self._iso_draw(cv, W, H, params, t, extra_fn=_extra_mer)
 
+        # Vignettes animées de l'onglet Mer (chacune protégée)
+        for _hfn in (self._draw_bathy_hint, self._draw_lod_hint,
+                     self._draw_smooth_hint, self._draw_maskwz_hint):
+            try:
+                _hfn()
+            except Exception:
+                pass
+
     # ── Canvas CÔTE ────────────────────────────────────────────────
     def _draw_cote(self):
         """Canvas animé Côte & Masques — 5 calques superposés."""
@@ -824,55 +1112,384 @@ class Ortho4XP_Simulator(tk.Toplevel):
                 cv._pk_lac = _ITK.PhotoImage(img_l)
                 cv.create_image(0, int(H * 0.05), anchor="nw", image=cv._pk_lac)
 
-            # ── CALQUE 5 : Dégradé jointure (animé par masks_width) ─
-            # Calculer largeur réelle en pixels
-            pxscal   = 156543 * math.cos(math.radians(46.7)) / (2 ** mzl)
-            grad_px  = mw / pxscal
-            MAX_PX   = 23
-            grad_disp = max(2, min(MAX_PX, int(grad_px * W / 4096.0 * 6)))
+            # ── CALQUE 5 : Zone masks_width (bande de transition côtière) ─
+            # Largeur réelle en mètres → hauteur visuelle proportionnelle
+            pxscal  = 156543 * math.cos(math.radians(46.7)) / (2 ** mzl)
+            grad_px = mw / max(pxscal, 1e-6)
+            # Bande affichée : de ~4 % à ~45 % de la hauteur mer (lisible)
+            frac = max(0.04, min(0.45, (mw - 50) / 4000.0 * 0.41 + 0.04))
+            band_h = max(6, int(H_M * frac))
+            # Centrée sur la jointure terre/mer (moitié terre, moitié mer)
+            y_top = max(0, SPLIT - band_h // 3)
+            y_bot = min(H, SPLIT + band_h)
 
-            if grad_disp >= 2:
-                H_deg = max(4, grad_disp * 2)
-                img_d = _load("degrade", _SIM_B64_DEGRADE, W, H_deg)
-                cv._pk_degrade = _ITK.PhotoImage(img_d)
-                cv.create_image(0, SPLIT, anchor="nw", image=cv._pk_degrade)
+            # Fond semi-transparent + hachures pour matérialiser la distance
+            try:
+                import numpy as np
+                overlay = _PIL.new("RGBA", (W, y_bot - y_top), (0, 0, 0, 0))
+                arr = np.asarray(overlay).copy()
+                hh = y_bot - y_top
+                for yy in range(hh):
+                    # Dégradé : opaque au centre (jointure), plus transparent aux bords
+                    d = abs(yy - (SPLIT - y_top)) / max(1, hh / 2)
+                    a = int(140 * max(0.0, 1.0 - d * 0.85))
+                    # Teinte selon masking_mode
+                    if mm == "rocks":
+                        col = (220, 180, 120, a)   # sable/roche
+                    elif mm == "3steps":
+                        col = (180, 210, 255, a)
+                    else:
+                        col = (255, 230, 120, a)   # sand = jaune doux
+                    arr[yy, :, :] = col
+                # Petites lignes de distance (graduation)
+                step = max(4, hh // 6)
+                for yy in range(0, hh, step):
+                    arr[yy, :, 3] = np.minimum(255, arr[yy, :, 3] + 40)
+                overlay = _PIL.fromarray(arr, "RGBA")
+                cv._pk_maskband = _ITK.PhotoImage(overlay)
+                cv.create_image(0, y_top, anchor="nw", image=cv._pk_maskband)
+            except Exception:
+                # Repli sans numpy : rectangle + traits
+                cv.create_rectangle(0, y_top, W, y_bot,
+                    fill="#ffe680", stipple="gray50", outline="")
+
+            # Contours de la bande
+            cv.create_line(0, y_top, W, y_top, fill="#ffe066", width=1, dash=(4, 3))
+            cv.create_line(0, y_bot, W, y_bot, fill="#ffe066", width=1, dash=(4, 3))
+            cv.create_line(0, SPLIT, W, SPLIT, fill="#ffffff", width=1)
+
+            # Flèche verticale de mesure (côté droit)
+            ax = W - 28
+            cv.create_line(ax, y_top, ax, y_bot, fill="#ffe066", width=2)
+            cv.create_line(ax - 5, y_top, ax + 5, y_top, fill="#ffe066", width=2)
+            cv.create_line(ax - 5, y_bot, ax + 5, y_bot, fill="#ffe066", width=2)
+            mid_y = (y_top + y_bot) // 2
+            cv.create_rectangle(ax - 52, mid_y - 10, ax - 4, mid_y + 10,
+                fill="#0a140a", outline="#ffe066")
+            cv.create_text(ax - 28, mid_y,
+                text=f"{int(mw)} m", fill="#ffe066",
+                font=("TkFixedFont", 9, "bold"))
 
             # ── Labels ─────────────────────────────────────────────
-            cv.create_text(W//2, H_T//2,
-                           text=tr("BC1 — TERRE"),
+            cv.create_text(W//2, max(12, H_T//2 - 8),
+                           text=tr("TERRE"),
                            fill="#ccffcc", font=("TkFixedFont", 9, "bold"))
-            cv.create_text(W//2, SPLIT + H_M//2,
-                           text=(tr("BC3 — MER") if imp=="True" else tr("BC1 — MER")),
+            cv.create_text(W//2, min(H - 20, SPLIT + H_M//2 + 8),
+                           text=(tr("MER (BC3)") if imp=="True" else tr("MER (BC1)")),
                            fill="#88ddff", font=("TkFixedFont", 9, "bold"))
+            cv.create_text(12, SPLIT - 4,
+                           text=tr("zone masque / dégradé"),
+                           fill="#ffe066", font=("TkFixedFont", 8), anchor="sw")
 
-            # Indicateur dégradé
-            cv.create_text(W//2, SPLIT + 8,
-                           text=f"{int(mw)}m = {int(grad_px)}px",
-                           fill="#ffdd44", font=("TkFixedFont", 7))
-
-            # ── Avertissements ─────────────────────────────────────
+            # ── Avertissements discrets (plus de barre rouge/noire pleine) ─
             warn = []
             if imp != "True" and wt == "XP12":
-                warn.append("⚠ imprint=False + XP12 → jointures visibles")
-            if grad_px > 1000:
-                warn.append(f"⚠ {int(mw)}m trop large ({int(grad_px)}px)")
+                warn.append(tr("imprint=False + XP12 → jointures possibles"))
+            if mw > 800:
+                warn.append(tr("masque très large — jointures parfois visibles"))
             if "XP11" in wt:
-                warn.append(tr('⚠ XP11+bathy : vagues XP12 désactivées'))
-            for i, w_txt in enumerate(warn):
-                yy = H - 16*(len(warn)-i)
-                cv.create_rectangle(0, yy, W, yy+16, fill="#3a0000", outline="")
-                cv.create_text(W//2, yy+8, text=w_txt,
-                               fill="#ff6b6b", font=("TkFixedFont", 7))
-            if not warn:
-                cv.create_rectangle(0, H-14, W, H, fill="#003a00", outline="")
-                cv.create_text(W//2, H-7,
-                               text=f"✅ ZL{mzl} {mm} {int(mw)}m — XP12 OK",
-                               fill="#44ff88", font=("TkFixedFont", 7))
+                warn.append(tr("XP11+bathy : vagues XP12 désactivées"))
+            if warn:
+                msg = "  ·  ".join(warn)
+                cv.create_text(W//2, H - 8, text=msg,
+                               fill="#ffaa66", font=("TkFixedFont", 8))
+            else:
+                cv.create_text(W//2, H - 8,
+                               text=f"ZL{mzl} · {mm} · masks_width {int(mw)} m",
+                               fill="#66ff99", font=("TkFixedFont", 8))
 
         except Exception as e:
             cv.create_text(W//2, H//2, text=f"[cote] {e}",
                            fill="#ff4444", font=("TkFixedFont", 9))
 
+
+    def _draw_bathy_hint(self):
+        """
+        ratio_bathy — coupe de plage qui descend sous l'eau :
+        le sable forme une pente ; la couleur de l'eau suit cette pente
+        (clair près de la plage → sombre au large si ratio élevé).
+        """
+        cv = self._canvases.get("mer_hint_bathy")
+        if not cv or not cv.winfo_exists():
+            return
+        W = max(120, cv.winfo_width())
+        H = max(60, cv.winfo_height())
+        rb = float(self._get("ratio_bathy", 1.0))
+        cv.delete("all")
+        cv.create_rectangle(0, 0, W, H, fill="#0a140a", outline="")
+
+        # Surface libre de l'eau (ligne horizontale)
+        y_water = int(H * 0.32)
+        y_bottom = H - 16
+
+        # Pente de plage : haut à gauche → bas à droite (sous l'eau)
+        # Point haut (hors eau / laisse)
+        x0, y0 = 4, int(H * 0.22)
+        # Point bas (sous l'eau, vers le large)
+        x1, y1 = int(W * 0.55), int(H * 0.78)
+        # Fin du fond à droite
+        x2, y2 = W - 4, y_bottom
+
+        def beach_y_at(x):
+            """Altitude du fond (sable) à l'abscisse x."""
+            if x <= x0:
+                return y0
+            if x >= x1:
+                # après la plage : fond plus plat / profond
+                t = (x - x1) / max(1, x2 - x1)
+                return int(y1 + (y2 - y1) * t)
+            t = (x - x0) / max(1, x1 - x0)
+            return int(y0 + (y1 - y0) * t)
+
+        # Eau : bandes verticales sous la surface, au-dessus du fond
+        n = 28
+        shallow = (40, 210, 190)   # turquoise côtier
+        deep = (8, 35, 85)         # bleu profond
+        for i in range(n):
+            f = i / max(1, n - 1)          # 0 côte → 1 large
+            x_a = int(4 + f * (W - 8))
+            x_b = int(4 + (i + 1) / n * (W - 8))
+            y_bed = beach_y_at((x_a + x_b) // 2)
+            # Couleur selon distance côte × ratio_bathy
+            d = f * rb
+            r = int(shallow[0] + (deep[0] - shallow[0]) * d)
+            g = int(shallow[1] + (deep[1] - shallow[1]) * d)
+            b = int(shallow[2] + (deep[2] - shallow[2]) * d)
+            # Colonne d'eau : de la surface jusqu'au fond (pente)
+            top = max(y_water, 2)
+            bot = max(top + 1, y_bed)
+            cv.create_rectangle(x_a, top, x_b + 1, bot,
+                fill=f"#{r:02x}{g:02x}{b:02x}", outline="")
+
+        # Polygone sable : pente qui plonge sous l'eau
+        sand_pts = [
+            0, y_bottom,
+            0, y0,
+            x0, y0,
+        ]
+        steps = 16
+        for i in range(steps + 1):
+            t = i / steps
+            x = int(x0 + (x1 - x0) * t)
+            sand_pts.extend([x, beach_y_at(x)])
+        sand_pts.extend([x2, y2, W, y_bottom])
+        cv.create_polygon(sand_pts, fill="#c2b280", outline="")
+        # Ligne de pente bien visible
+        slope_line = []
+        for i in range(20):
+            t = i / 19
+            x = int(x0 + (x1 - x0) * t)
+            slope_line.extend([x, beach_y_at(x)])
+        cv.create_line(slope_line, fill="#8a7340", width=2)
+
+        # Surface de l'eau
+        cv.create_line(0, y_water, W, y_water, fill="#bfffe8", width=1, dash=(3, 2))
+        cv.create_text(W - 6, y_water - 2, text=tr("surface"),
+            fill="#a6e3a1", font=("TkFixedFont", 7), anchor="se")
+        cv.create_text(8, y0 - 2, text=tr("plage"),
+            fill="#e8d8a0", font=("TkFixedFont", 7), anchor="sw")
+
+        # Flèche
+        cv.create_line(int(W * 0.35), 10, W - 12, 10, fill="#a6e3a1",
+            width=1, arrow="last")
+        cv.create_text(W // 2, 10, text=tr("côte → large"),
+            fill="#a6e3a1", font=("TkFixedFont", 7), anchor="n")
+
+        if rb < 0.2:
+            msg, col = tr("même couleur partout"), "#ffe066"
+        elif rb < 0.6:
+            msg, col = tr("un peu plus sombre au large"), "#88ccff"
+        else:
+            msg, col = tr("profond sombre / côte claire"), "#66ff99"
+        cv.create_rectangle(0, H - 15, W, H, fill="#060e06", outline="")
+        cv.create_text(W // 2, H - 8, text=msg, fill=col,
+            font=("TkFixedFont", 8, "bold"))
+
+    def _draw_lod_hint(self):
+        """
+        overlay_lod — jusqu'où la photo satellite reste collée sur la mer.
+        Vue du dessus : avion, zone photo, puis eau XP seule.
+        """
+        import math
+        cv = self._canvases.get("mer_hint_lod")
+        if not cv or not cv.winfo_exists():
+            return
+        W = max(120, cv.winfo_width())
+        H = max(60, cv.winfo_height())
+        lod = float(self._get("overlay_lod", 30000))
+        cv.delete("all")
+        cv.create_rectangle(0, 0, W, H, fill="#0a140a", outline="")
+
+        fr = max(0.0, min(1.0, (lod - 5000) / 45000.0))
+        # Zone photo (gauche) vs eau nue (droite)
+        split = int(16 + fr * (W - 28))
+
+        # Mer avec photo (hachures = imagerie)
+        cv.create_rectangle(8, 18, split, H - 20, fill="#1a6b4a", outline="")
+        for x in range(10, split, 7):
+            for y in range(20, H - 20, 7):
+                cv.create_rectangle(x, y, x + 4, y + 4,
+                    fill="#2d8f62", outline="")
+        cv.create_text((8 + split) // 2, 28,
+            text=tr("photo sur mer"), fill="#e8ffe8",
+            font=("TkFixedFont", 7))
+
+        # Eau XP seule
+        if split < W - 10:
+            cv.create_rectangle(split, 18, W - 8, H - 20,
+                fill="#0d2b5c", outline="")
+            cv.create_text((split + W - 8) // 2, 28,
+                text=tr("eau XP seule"), fill="#aaccff",
+                font=("TkFixedFont", 7))
+
+        # Limite + avion
+        cv.create_line(split, 16, split, H - 18, fill="#ffffff", width=1,
+            dash=(3, 2))
+        # Petit avion (triangle)
+        ax = 14
+        ay = H // 2
+        cv.create_polygon(ax, ay, ax + 10, ay - 5, ax + 10, ay + 5,
+            fill="#ffe066", outline="")
+        cv.create_text(ax + 4, ay + 12, text=tr("vous"),
+            fill="#ffe066", font=("TkFixedFont", 7))
+
+        cv.create_text(W // 2, 8, text=f"{lod / 1000:.0f} km",
+            fill="#ffdd44", font=("TkFixedFont", 9, "bold"))
+
+        if lod < 15000:
+            msg, col = tr("photo disparaît vite"), "#ff8866"
+        elif lod < 40000:
+            msg, col = tr("portée confortable"), "#66ff99"
+        else:
+            msg, col = tr("photo très loin"), "#88ccff"
+        cv.create_text(W // 2, H - 8, text=msg, fill=col,
+            font=("TkFixedFont", 8, "bold"))
+
+    def _draw_smooth_hint(self):
+        """
+        water_smoothing — bord d'un lac :
+        0 = dents de scie ; élevé = rivage arrondi.
+        """
+        import math, random
+        cv = self._canvases.get("mer_hint_smooth")
+        if not cv or not cv.winfo_exists():
+            return
+        W = max(120, cv.winfo_width())
+        H = max(60, cv.winfo_height())
+        sm = int(float(self._get("water_smoothing", 2)))
+        cv.delete("all")
+        cv.create_rectangle(0, 0, W, H, fill="#0a140a", outline="")
+
+        pad = 8
+        x0, y0 = pad, 14
+        bw, bh = W - 2 * pad, H - 28
+        midy = y0 + bh // 2
+        frac = max(0.0, min(1.0, sm / 5.0))
+
+        rnd = random.Random(1234)
+        npts = 20
+        jag = [rnd.uniform(-1, 1) for _ in range(npts)]
+        pts = []
+        for i in range(npts):
+            f = i / (npts - 1)
+            x = x0 + int(f * bw)
+            jagged = jag[i] * bh * 0.32
+            smoothv = math.sin(f * math.pi * 1.2) * bh * 0.08
+            yy = midy + jagged * (1 - frac) + smoothv * frac
+            pts.extend([x, yy])
+
+        # Terre au-dessus, eau en dessous
+        cv.create_polygon([x0, y0] + pts + [x0 + bw, y0],
+            fill="#2a5a32", outline="")
+        cv.create_polygon([x0, y0 + bh] + pts + [x0 + bw, y0 + bh],
+            fill="#1a5080", outline="")
+        cv.create_line(pts, fill="#ffe066", width=2, smooth=(frac > 0.35))
+
+        cv.create_text(x0 + 4, y0 + 6, text=tr("terre"),
+            fill="#c8e8c8", font=("TkFixedFont", 7), anchor="w")
+        cv.create_text(x0 + 4, y0 + bh - 6, text=tr("lac"),
+            fill="#c8d8ff", font=("TkFixedFont", 7), anchor="w")
+
+        if sm == 0:
+            msg, col = tr("rivage en dents de scie"), "#ff8866"
+        elif sm <= 2:
+            msg, col = tr("rivage naturel (reco)"), "#66ff99"
+        else:
+            msg, col = tr("rivage très arrondi"), "#88ccff"
+        cv.create_text(W // 2, H - 8, text=f"×{sm} — " + msg, fill=col,
+            font=("TkFixedFont", 8, "bold"))
+
+    def _draw_maskwz_hint(self):
+        """
+        masks_width × mask_zl — coupe côte :
+        bande jaune = largeur du masque ; cases = finesse (mask_zl).
+        """
+        import math
+        cv = self._canvases.get("mer_hint_maskwz")
+        if not cv or not cv.winfo_exists():
+            return
+        W = max(120, cv.winfo_width())
+        H = max(60, cv.winfo_height())
+        mw = float(self._get("masks_width", 100))
+        mzl = int(float(self._get("mask_zl", 17)))
+        cv.delete("all")
+        cv.create_rectangle(0, 0, W, H, fill="#0a140a", outline="")
+
+        pad = 6
+        x0, y0 = pad, 16
+        bw, bh = W - 2 * pad, H - 28
+
+        # Largeur bande (masks_width)
+        bwf = max(0.10, min(0.70, (mw - 50) / 2500.0 * 0.60 + 0.10))
+        band_h = max(8, int(bh * bwf))
+        land_h = max(6, int((bh - band_h) * 0.4))
+        sea_h = bh - land_h - band_h
+        sea_y0 = y0 + land_h + band_h
+
+        # Terre / mer
+        cv.create_rectangle(x0, y0, x0 + bw, y0 + land_h,
+            fill="#2a5a32", outline="")
+        cv.create_rectangle(x0, sea_y0, x0 + bw, y0 + bh,
+            fill="#123a5c", outline="")
+        cv.create_text(x0 + 4, y0 + 2, text=tr("terre"),
+            fill="#c8e8c8", font=("TkFixedFont", 7), anchor="nw")
+        cv.create_text(x0 + 4, y0 + bh - 2, text=tr("mer"),
+            fill="#c8d8ff", font=("TkFixedFont", 7), anchor="sw")
+
+        # Bande masque en cases (mask_zl = taille des pixels)
+        cell = max(3, int(18 - (mzl - 14) * 2.2))
+        ncols = max(1, bw // cell)
+        nrows = max(1, band_h // max(1, cell))
+        for r in range(nrows + 1):
+            for c in range(ncols + 1):
+                cx = x0 + c * cell
+                cy = y0 + land_h + r * cell
+                f = r / max(1, nrows)
+                # dégradé jaune → bleu dans la bande
+                rr = int(255 - 180 * f)
+                gg = int(220 - 100 * f)
+                bb = int(80 + 80 * f)
+                cv.create_rectangle(cx, cy,
+                    min(cx + cell - 1, x0 + bw),
+                    min(cy + cell - 1, sea_y0),
+                    fill=f"#{rr:02x}{gg:02x}{bb:02x}", outline="#0a140a")
+
+        # Flèche épaisseur
+        ax = x0 + bw - 10
+        cv.create_line(ax, y0 + land_h, ax, sea_y0, fill="#ffe066", width=1,
+            arrow="both")
+        cv.create_text(W // 2, 8,
+            text=tr("largeur masque") + f" {int(mw)} m · ZL{mzl}",
+            fill="#ffdd44", font=("TkFixedFont", 8, "bold"))
+
+        if mw > 1200:
+            msg, col = tr("transition très large"), "#ff8866"
+        elif cell >= 12:
+            msg, col = tr("pixels masque gros"), "#ffe066"
+        else:
+            msg, col = tr("transition fine"), "#66ff99"
+        cv.create_text(W // 2, H - 8, text=msg, fill=col,
+            font=("TkFixedFont", 8, "bold"))
 
     def _setup_xp12_compatibility(self):
         """Bloque les options incompatibles avec XP12 en temps réel."""
@@ -892,6 +1509,337 @@ class Ortho4XP_Simulator(tk.Toplevel):
                 self._vars[key].trace_add("write", _check)
 
         # ── Canvas TERRAIN ─────────────────────────────────────────────
+    def _terrain_photo_base(self, W, H):
+        """Paysage réaliste (même images que Mesh 3D), redimensionné."""
+        sharp = self._mesh_pil("mesh_sharp.png", (W, H)) if hasattr(self, "_mesh_pil") else None
+        soft = self._mesh_pil("mesh_soft.png", (W, H)) if hasattr(self, "_mesh_pil") else None
+        img = sharp or soft
+        if img is None:
+            return None
+        return img.copy()
+
+    def _draw_nm_hint(self):
+        """
+        normal_map_strength sur photo réelle :
+        bas = image délavée / plat ; haut = contraste d'ombres marqué.
+        """
+        cv = self._canvases.get("terrain_hint_nm")
+        if not cv or not cv.winfo_exists():
+            return
+        W = max(120, cv.winfo_width())
+        H = max(60, cv.winfo_height())
+        nm = float(self._get("normal_map_strength", 1.0))
+        t = max(0.0, min(1.0, nm / 2.0))
+        cv.delete("all")
+
+        base = self._terrain_photo_base(W, H)
+        if base is not None:
+            try:
+                from PIL import ImageEnhance, ImageTk, ImageDraw
+                # Contraste / luminosité liés à normal_map
+                # t=0 → plat (faible contraste) ; t=1 → relief marqué
+                contrast = 0.45 + 1.35 * t
+                img = ImageEnhance.Contrast(base.convert("RGB")).enhance(contrast)
+                # Assombrir légèrement les zones déjà sombres si t haut
+                if t > 0.3:
+                    img = ImageEnhance.Sharpness(img).enhance(0.8 + t)
+                # Petit soleil en overlay
+                draw = ImageDraw.Draw(img, "RGBA") if False else None
+                photo = ImageTk.PhotoImage(img)
+                cv.create_image(0, 0, anchor="nw", image=photo)
+                cv._nm_photo = photo
+                # Soleil (canvas)
+                cv.create_oval(10, 8, 28, 26, fill="#ffe066", outline="#fff8aa")
+                cv.create_text(32, 16, text="☀", fill="#ffe066",
+                    font=("TkFixedFont", 10), anchor="w")
+            except Exception:
+                base = None
+        if base is None:
+            cv.create_rectangle(0, 0, W, H, fill="#1a2a20", outline="")
+            cv.create_text(W//2, H//2, text=tr("image paysage absente"),
+                fill="#a6e3a1", font=("TkFixedFont", 9))
+
+        if t < 0.25:
+            msg, col = tr("plat — peu d'ombrage"), "#ffe066"
+        elif t < 0.6:
+            msg, col = tr("ombrage normal"), "#88ccff"
+        else:
+            msg, col = tr("relief marqué — ombres fortes"), "#66ff99"
+        cv.create_rectangle(0, H - 18, W, H, fill="#060e06", outline="")
+        cv.create_text(W // 2, H - 9, text=msg, fill=col,
+            font=("TkFixedFont", 8, "bold"))
+
+    def _draw_shadow_hint(self):
+        """
+        terrain_casts_shadows (True/False) sur photo :
+        True  = ombres allongées bien visibles sous les reliefs
+        False = aucune ombre, image « plate »
+        """
+        cv = self._canvases.get("terrain_hint_shadow")
+        if not cv or not cv.winfo_exists():
+            return
+        W = max(120, cv.winfo_width())
+        H = max(60, cv.winfo_height())
+        on = str(self._get("terrain_casts_shadows", "True")) == "True"
+        cv.delete("all")
+
+        base = self._terrain_photo_base(W, H)
+        if base is not None:
+            try:
+                from PIL import Image, ImageDraw, ImageTk, ImageFilter, ImageEnhance
+                img = base.convert("RGBA")
+                if on:
+                    shadow = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+                    dr = ImageDraw.Draw(shadow)
+                    for cx, cy, rw, rh in (
+                        (int(W * 0.50), int(H * 0.58), int(W * 0.28), int(H * 0.10)),
+                        (int(W * 0.28), int(H * 0.65), int(W * 0.20), int(H * 0.07)),
+                        (int(W * 0.72), int(H * 0.50), int(W * 0.18), int(H * 0.06)),
+                        (int(W * 0.40), int(H * 0.42), int(W * 0.12), int(H * 0.05)),
+                    ):
+                        dr.ellipse([cx - rw, cy - rh, cx + rw, cy + rh],
+                                   fill=(0, 0, 0, 130))
+                    shadow = shadow.filter(ImageFilter.GaussianBlur(4))
+                    img = Image.alpha_composite(img, shadow)
+                    # Assombrir un peu le versant
+                    img = ImageEnhance.Contrast(img.convert("RGB")).enhance(1.15)
+                    img = img.convert("RGBA")
+                else:
+                    # Aplatir : moins de contraste = « pas d'ombre »
+                    img = ImageEnhance.Contrast(img.convert("RGB")).enhance(0.7)
+                    img = img.convert("RGBA")
+                photo = ImageTk.PhotoImage(img.convert("RGB"))
+                cv.create_image(0, 0, anchor="nw", image=photo)
+                cv._sh_photo = photo
+            except Exception:
+                base = None
+        if base is None:
+            cv.create_rectangle(0, 0, W, H, fill="#1a2a20", outline="")
+
+        # Badge True / False bien visible
+        if on:
+            badge, bcol = "True — " + tr("ombres ON"), "#66ff99"
+        else:
+            badge, bcol = "False — " + tr("ombres OFF"), "#ff8866"
+        cv.create_rectangle(0, H - 20, W, H, fill="#060e06", outline="")
+        cv.create_text(W // 2, H - 10, text=badge, fill=bcol,
+            font=("TkFixedFont", 9, "bold"))
+        cv.create_oval(W - 22, 6, W - 8, 20, fill="#ffe066", outline="")
+
+    def _draw_nodata_hint(self):
+        """
+        fill_nodata True/False sur photo :
+        False = trous rouges avec croix + « données manquantes »
+        True  = mêmes zones remplies, aspect normal + « trous comblés »
+        """
+        cv = self._canvases.get("terrain_hint_nodata")
+        if not cv or not cv.winfo_exists():
+            return
+        W = max(120, cv.winfo_width())
+        H = max(60, cv.winfo_height())
+        fill = str(self._get("fill_nodata", "True")) == "True"
+        cv.delete("all")
+
+        base = self._terrain_photo_base(W, H)
+        holes = [
+            (int(W * 0.12), int(H * 0.18), int(W * 0.30), int(H * 0.42)),
+            (int(W * 0.52), int(H * 0.30), int(W * 0.72), int(H * 0.55)),
+            (int(W * 0.32), int(H * 0.52), int(W * 0.48), int(H * 0.72)),
+        ]
+        if base is not None:
+            try:
+                from PIL import Image, ImageDraw, ImageTk
+                img = base.convert("RGBA")
+                dr = ImageDraw.Draw(img)
+                for box in holes:
+                    x0, y0, x1, y1 = box
+                    if fill:
+                        # Comblé : presque invisible, fine bordure verte
+                        dr.rectangle(box, outline=(80, 200, 100, 160), width=2)
+                    else:
+                        dr.rectangle(box, fill=(160, 30, 30, 180))
+                        dr.line([(x0, y0), (x1, y1)], fill=(255, 100, 100, 220), width=2)
+                        dr.line([(x1, y0), (x0, y1)], fill=(255, 100, 100, 220), width=2)
+                photo = ImageTk.PhotoImage(img.convert("RGB"))
+                cv.create_image(0, 0, anchor="nw", image=photo)
+                cv._nd_photo = photo
+            except Exception:
+                base = None
+        if base is None:
+            cv.create_rectangle(0, 0, W, H, fill="#1a2a20", outline="")
+
+        if fill:
+            badge, bcol = "True — " + tr("trous comblés"), "#66ff99"
+        else:
+            badge, bcol = "False — " + tr("trous (données manquantes)"), "#ff8866"
+        cv.create_rectangle(0, H - 20, W, H, fill="#060e06", outline="")
+        cv.create_text(W // 2, H - 10, text=badge, fill=bcol,
+            font=("TkFixedFont", 8, "bold"))
+
+    def _draw_minarea_hint(self):
+        """
+        min_area : sur une carte, petits îlots / bâtiments.
+        Valeur basse = tout est gardé.
+        Valeur haute = les petits disparaissent (filtrés).
+        """
+        import math
+        cv = self._canvases.get("terrain_hint_minarea")
+        if not cv or not cv.winfo_exists():
+            return
+        W = max(120, cv.winfo_width())
+        H = max(60, cv.winfo_height())
+        try:
+            v = float(self._get("min_area", 0.0001))
+        except Exception:
+            v = 0.0001
+        t = max(0.0, min(1.0, (math.log10(max(v, 1e-6)) + 5) / 3.0))
+        cv.delete("all")
+        cv.create_rectangle(0, 0, W, H, fill="#0a140a", outline="")
+
+        # Fond « carte »
+        cv.create_rectangle(6, 6, W - 6, H - 22, fill="#1a3020", outline="#3a5a40")
+        cv.create_text(10, 8, text=tr("carte vectorielle"), fill="#80a080",
+            font=("TkFixedFont", 7), anchor="nw")
+
+        # Objets : (x, y, taille relative 0..1, label)
+        objs = [
+            (0.18, 0.45, 0.07, "S"),
+            (0.32, 0.60, 0.05, "S"),
+            (0.48, 0.40, 0.20, "M"),
+            (0.70, 0.55, 0.28, "L"),
+            (0.25, 0.75, 0.04, "S"),
+            (0.55, 0.72, 0.15, "M"),
+        ]
+        # seuil de taille : t=0 garde tout, t=1 ne garde que L
+        thresh = 0.05 + t * 0.22
+        kept = 0
+        total = len(objs)
+        for fx, fy, sz, kind in objs:
+            x, y = int(fx * W), int(fy * (H - 8))
+            r = max(3, int(sz * min(W, H) * 0.9))
+            if sz >= thresh:
+                cv.create_oval(x - r, y - r, x + r, y + r,
+                    fill="#3d9f5a", outline="#88ffaa")
+                kept += 1
+            else:
+                cv.create_oval(x - r, y - r, x + r, y + r,
+                    fill="#333333", outline="#666666")
+                cv.create_line(x - r, y - r, x + r, y + r, fill="#ff5555", width=2)
+                cv.create_line(x + r, y - r, x - r, y + r, fill="#ff5555", width=2)
+
+        msg = tr("gardés") + f" {kept}/{total}"
+        if t < 0.3:
+            detail, col = tr("même les tout petits"), "#66ff99"
+        elif t < 0.7:
+            detail, col = tr("petits filtrés"), "#ffe066"
+        else:
+            detail, col = tr("seuls les grands"), "#ff8866"
+        cv.create_rectangle(0, H - 18, W, H, fill="#060e06", outline="")
+        cv.create_text(W // 2, H - 9, text=f"{msg} — {detail}", fill=col,
+            font=("TkFixedFont", 8, "bold"))
+
+    def _draw_maxarea_hint(self):
+        """
+        max_area : un grand lac / forêt.
+        Valeur haute = 1 seul polygone.
+        Valeur basse = découpé en plusieurs polygones.
+        """
+        cv = self._canvases.get("terrain_hint_maxarea")
+        if not cv or not cv.winfo_exists():
+            return
+        W = max(120, cv.winfo_width())
+        H = max(60, cv.winfo_height())
+        try:
+            v = float(self._get("max_area", 100))
+        except Exception:
+            v = 100
+        # plus max_area est petit, plus on découpe
+        t = max(0.0, min(1.0, (200 - v) / 199.0))
+        cv.delete("all")
+        cv.create_rectangle(0, 0, W, H, fill="#0a140a", outline="")
+
+        cv.create_rectangle(6, 6, W - 6, H - 22, fill="#1a3020", outline="#3a5a40")
+        cv.create_text(10, 8, text=tr("grand polygone (lac)"), fill="#80a080",
+            font=("TkFixedFont", 7), anchor="nw")
+
+        # Forme de lac
+        x0, y0 = 16, 20
+        bw, bh = W - 32, H - 44
+        n = 1 + int(t * 5)  # 1..6 morceaux
+
+        if n <= 1:
+            cv.create_oval(x0, y0, x0 + bw, y0 + bh,
+                fill="#2a6aaa", outline="#88ccff", width=2)
+            msg, col = tr("1 seul polygone (pas de découpe)"), "#ffe066"
+        else:
+            # Découpe en grille
+            cols = min(n, 3)
+            rows = (n + cols - 1) // cols
+            for i in range(n):
+                r, c = divmod(i, cols)
+                ww = bw // cols - 3
+                hh = bh // rows - 3
+                xx = x0 + c * (bw // cols)
+                yy = y0 + r * (bh // rows)
+                cv.create_rectangle(xx, yy, xx + ww, yy + hh,
+                    fill="#2a6aaa", outline="#88ccff")
+            msg, col = tr("découpé en") + f" {n} " + tr("polygones"), "#66ff99"
+
+        cv.create_rectangle(0, H - 18, W, H, fill="#060e06", outline="")
+        cv.create_text(W // 2, H - 9, text=msg, fill=col,
+            font=("TkFixedFont", 8, "bold"))
+
+    def _draw_wsimpl_hint(self):
+        """
+        water_simplification : rive détaillée vs simplifiée.
+        0 = sinueuse ; 1 = presque droite.
+        """
+        import math
+        cv = self._canvases.get("terrain_hint_wsimpl")
+        if not cv or not cv.winfo_exists():
+            return
+        W = max(120, cv.winfo_width())
+        H = max(60, cv.winfo_height())
+        try:
+            ws = float(self._get("water_simplification", 0))
+        except Exception:
+            ws = 0.0
+        t = max(0.0, min(1.0, ws))
+        cv.delete("all")
+        cv.create_rectangle(0, 0, W, H, fill="#0a140a", outline="")
+
+        npts = int(28 - t * 22)
+        npts = max(3, npts)
+        midy = H // 2 - 2
+        pts = []
+        for i in range(npts):
+            f = i / max(1, npts - 1)
+            x = 8 + int(f * (W - 16))
+            jag = (math.sin(f * math.pi * 7) * 11 +
+                   math.sin(f * math.pi * 15) * 5) * (1 - t)
+            pts.extend([x, int(midy + jag)])
+
+        cv.create_polygon([8, H - 18] + pts + [W - 8, H - 18],
+            fill="#1a5080", outline="")
+        cv.create_polygon([8, 8] + pts + [W - 8, 8],
+            fill="#2a5a32", outline="")
+        cv.create_line(pts, fill="#ffe066", width=2, smooth=(t < 0.4))
+
+        cv.create_text(10, 10, text=tr("terre"), fill="#c8e8c8",
+            font=("TkFixedFont", 7), anchor="nw")
+        cv.create_text(10, H - 28, text=tr("eau"), fill="#c8d8ff",
+            font=("TkFixedFont", 7), anchor="sw")
+
+        if t < 0.2:
+            msg, col = "0 — " + tr("rive très détaillée"), "#66ff99"
+        elif t < 0.55:
+            msg, col = tr("rive un peu simplifiée"), "#ffe066"
+        else:
+            msg, col = "1 — " + tr("rive simplifiée (droite)"), "#ff8866"
+        cv.create_rectangle(0, H - 18, W, H, fill="#060e06", outline="")
+        cv.create_text(W // 2, H - 9, text=msg, fill=col,
+            font=("TkFixedFont", 8, "bold"))
+
     def _draw_terrain(self):
         cv = self._canvases.get("terrain")
         if not cv or not cv.winfo_exists():
@@ -920,13 +1868,18 @@ class Ortho4XP_Simulator(tk.Toplevel):
             "ratio_water": float(self._get("ratio_water", 0.1)),
         }
         self._iso_draw(cv, W, H, params, self._t, extra_fn=_extra_terrain)
+        self._draw_nm_hint()
+        self._draw_shadow_hint()
+        self._draw_nodata_hint()
+        self._draw_minarea_hint()
+        self._draw_maxarea_hint()
+        self._draw_wsimpl_hint()
 
     # ── Canvas MESH ────────────────────────────────────────────────
     def _mesh_image_path(self, name):
-        """Cherche une image mesh (priorité : dossier racine Simulator_images/)."""
+        """Cherche une image mesh (priorité : Simulator_images/ à la racine)."""
         root = getattr(FNAMES, "Ortho4XP_dir", "") or ""
         src  = os.path.dirname(__file__)
-        # Alias : noms longs d'origine → noms courts attendus par le code
         aliases = {
             "mesh_soft.png": [
                 "mesh_soft.png",
@@ -964,7 +1917,6 @@ class Ortho4XP_Simulator(tk.Toplevel):
         return None
 
     def _mesh_pil(self, name, size):
-        """Charge une image mesh en PIL RGBA redimensionnée (cache)."""
         key = (name, size)
         cache = getattr(self, "_mesh_pil_cache", None)
         if cache is None:
@@ -977,7 +1929,6 @@ class Ortho4XP_Simulator(tk.Toplevel):
             cache[key] = None
             return None
         try:
-            from PIL import Image
             img = Image.open(path).convert("RGBA")
             img = img.resize(size, Image.LANCZOS)
             cache[key] = img
@@ -986,38 +1937,100 @@ class Ortho4XP_Simulator(tk.Toplevel):
             cache[key] = None
             return None
 
-    def _mesh_quality(self):
-        """Score 0.0 (grossier) → 1.0 (très précis) selon les curseurs mesh."""
+    def _mesh_mask_grid_to_terrain(self, grid, landscape):
+        """Retire les traits sur ciel (au-dessus des crêtes) et sur l'eau."""
+        if grid is None or landscape is None:
+            return grid
+        try:
+            import numpy as np
+            land = np.asarray(landscape.convert("RGBA"))
+            gr = np.asarray(grid.convert("RGBA")).copy()
+            h, w = land.shape[:2]
+            lr = land[:, :, 0].astype(np.int16)
+            lg = land[:, :, 1].astype(np.int16)
+            lb = land[:, :, 2].astype(np.int16)
+            lum = (lr + lg + lb) / 3.0
+            is_sky = (lum > 145) & (lb >= lr - 8) & (lb >= lg - 8)
+            is_water = (lb > lg + 10) & (lb > lr + 10) & (lum > 35) & (lum < 210)
+            ridgeline = np.full(w, h, dtype=np.int32)
+            for x in range(w):
+                nz = np.where(~is_sky[:, x])[0]
+                if len(nz):
+                    ridgeline[x] = int(nz[0])
+            yy = np.arange(h)[:, None]
+            above_ridge = yy < ridgeline[None, :]
+            remove = above_ridge | is_water | is_sky
+            gr[:, :, 3] = np.where(remove, 0, gr[:, :, 3])
+            return Image.fromarray(gr, "RGBA")
+        except Exception:
+            g = grid.load()
+            L = landscape.load()
+            w, h = grid.size
+            out = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+            o = out.load()
+            for x in range(w):
+                ridge = h
+                for y in range(h):
+                    lr, lg, lb, _ = L[x, y]
+                    lum = (lr + lg + lb) / 3.0
+                    if not (lum > 145 and lb >= lr - 8 and lb >= lg - 8):
+                        ridge = y
+                        break
+                for y in range(h):
+                    gr_, gg, gb, ga = g[x, y]
+                    if ga < 8 or y < ridge:
+                        continue
+                    lr, lg, lb, _ = L[x, y]
+                    lum = (lr + lg + lb) / 3.0
+                    if lb > lg + 10 and lb > lr + 10 and 35 < lum < 210:
+                        continue
+                    if lum > 145 and lb >= lr - 8 and lb >= lg - 8:
+                        continue
+                    o[x, y] = (gr_, gg, gb, ga)
+            return out
+
+    def _mesh_scores(self):
+        """
+        mesh_zl       → taille triangles + relief (ronds/pics) liés
+        curvature_tol → alignement montagne / grille
+        limit_tris    → « budget » de triangles : grille partielle → complète
+        """
         mzl  = float(self._get("mesh_zl", 19))
         ctol = float(self._get("curvature_tol", 16))
         lt   = float(self._get("limit_tris", 15))
-        s_zl = max(0.0, min(1.0, (mzl - 14.0) / 6.0))
-        s_ct = max(0.0, min(1.0, (30.0 - ctol) / 29.0))
-        s_lt = max(0.0, min(1.0, (lt - 1.0) / 49.0))
-        return 0.45 * s_zl + 0.35 * s_ct + 0.20 * s_lt
 
-    def _mesh_blended_photo(self, W, H, q):
+        mesh_q = max(0.0, min(1.0, (mzl - 14.0) / 6.0))
+        grid_q = mesh_q
+        land_q = mesh_q
+        misalign = max(0.0, min(1.0, (ctol - 1.0) / 29.0))
+        # 1M → quasi vide, 15M → moyen, 50M → plein
+        fill_q = max(0.0, min(1.0, (lt - 1.0) / 49.0))
+
+        return grid_q, land_q, misalign, fill_q, mzl, ctol, lt
+
+    def _mesh_blended_photo(self, W, H, grid_q, land_q, misalign, fill_q):
         """
-        Paysage : fondu progressif soft → sharp.
-        Grille : UNE seule densité à la fois (grands OU petits),
-        avec une courte transition d'opacité au milieu —
-        on ne mélange plus les deux motifs (effet « grillage moche »).
+        Paysage + grille (mesh_zl), décalage (curvature),
+        couverture partielle de la grille (limit_tris).
         """
-        from PIL import Image, ImageTk
-        q = max(0.0, min(1.0, float(q)))
-        # Pas fin pour le paysage ; grille bascule autour de 0.5
-        q_land = round(q * 20) / 20.0
-        # Grille : 0 = grands seuls, 1 = petits seuls
-        if q < 0.42:
+        grid_q = max(0.0, min(1.0, float(grid_q)))
+        land_q = max(0.0, min(1.0, float(land_q)))
+        misalign = max(0.0, min(1.0, float(misalign)))
+        fill_q = max(0.0, min(1.0, float(fill_q)))
+        q_land = round(land_q * 20) / 20.0
+        mis_step = round(misalign * 12) / 12.0
+        fill_step = round(fill_q * 12) / 12.0
+
+        if grid_q < 0.42:
             grid_mode, grid_alpha = "large", 1.0
-        elif q > 0.58:
+        elif grid_q > 0.58:
             grid_mode, grid_alpha = "small", 1.0
         else:
-            # Zone de transition 0.42→0.58 : fond du grand, apparition du petit
-            t = (q - 0.42) / (0.58 - 0.42)  # 0→1
+            t = (grid_q - 0.42) / (0.58 - 0.42)
             grid_mode, grid_alpha = "cross", t
 
-        key = (W, H, q_land, grid_mode, round(grid_alpha, 2))
+        key = ("v7fill", W, H, q_land, grid_mode, round(grid_alpha, 2),
+               mis_step, fill_step)
         cache = getattr(self, "_mesh_blend_cache", None)
         if cache is None:
             self._mesh_blend_cache = {}
@@ -1031,13 +2044,33 @@ class Ortho4XP_Simulator(tk.Toplevel):
         g_small = self._mesh_pil("mesh_grid_small.png", (W, H))
 
         if soft and sharp:
-            base = Image.blend(soft, sharp, q_land)
+            land = Image.blend(soft, sharp, q_land)
         else:
-            base = sharp or soft
-            if base is None:
+            land = sharp or soft
+            if land is None:
                 cache[key] = None
                 return None
-            base = base.copy()
+            land = land.copy()
+
+        base = Image.new("RGBA", (W, H), (15, 25, 20, 255))
+
+        ox = int(mis_step * W * 0.035)
+        oy = int(mis_step * H * 0.045)
+        if mis_step > 0.05:
+            z = 1.0 + mis_step * 0.06
+            nw, nh = int(W * z), int(H * z)
+            land_s = land.resize((nw, nh), Image.LANCZOS)
+            px = -ox - (nw - W) // 2
+            py = -oy - (nh - H) // 2
+            base.paste(land_s, (px, py))
+        else:
+            base.paste(land, (0, 0))
+
+        land_for_mask = base.copy()
+        if g_large is not None:
+            g_large = self._mesh_mask_grid_to_terrain(g_large, land_for_mask)
+        if g_small is not None:
+            g_small = self._mesh_mask_grid_to_terrain(g_small, land_for_mask)
 
         def _with_opacity(img, alpha):
             if img is None or alpha <= 0:
@@ -1046,30 +2079,257 @@ class Ortho4XP_Simulator(tk.Toplevel):
                 return img
             r, g, b, a = img.split()
             a = a.point(lambda p: int(p * alpha))
-            out = Image.merge("RGBA", (r, g, b, a))
-            return out
+            return Image.merge("RGBA", (r, g, b, a))
 
+        def _apply_fill_budget(grid_img, fq):
+            """
+            limit_tris bas → grille seulement en bas (budget épuisé).
+            limit_tris haut → grille sur tout le relief.
+            """
+            if grid_img is None:
+                return None
+            # Toujours un peu de grille en bas (15%), jusqu'à 100%
+            cover = 0.15 + 0.85 * fq
+            y_cut = int(H * (1.0 - cover))
+            g = grid_img.copy()
+            # Efface les traits au-dessus de y_cut (alpha = 0)
+            if y_cut > 0:
+                top = Image.new("RGBA", (W, y_cut), (0, 0, 0, 0))
+                g.paste(top, (0, 0))
+            return g, y_cut
+
+        grid_final = None
+        y_cut = 0
         if grid_mode == "large" and g_large is not None:
-            base = Image.alpha_composite(base, g_large)
+            grid_final, y_cut = _apply_fill_budget(g_large, fill_step)
         elif grid_mode == "small" and g_small is not None:
-            base = Image.alpha_composite(base, g_small)
+            grid_final, y_cut = _apply_fill_budget(g_small, fill_step)
         elif grid_mode == "cross":
-            # Grand s'efface, petit apparaît (pas de blend des motifs)
             gl = _with_opacity(g_large, 1.0 - grid_alpha)
             gs = _with_opacity(g_small, grid_alpha)
-            if gl is not None:
-                base = Image.alpha_composite(base, gl)
-            if gs is not None:
-                base = Image.alpha_composite(base, gs)
+            if gl is not None and gs is not None:
+                merged = Image.alpha_composite(
+                    Image.new("RGBA", (W, H), (0, 0, 0, 0)), gl)
+                merged = Image.alpha_composite(merged, gs)
+                grid_final, y_cut = _apply_fill_budget(merged, fill_step)
+            elif gl is not None:
+                grid_final, y_cut = _apply_fill_budget(gl, fill_step)
+            elif gs is not None:
+                grid_final, y_cut = _apply_fill_budget(gs, fill_step)
 
-        photo = ImageTk.PhotoImage(base)
-        if len(cache) > 30:
+        if grid_final is not None:
+            base = Image.alpha_composite(base.convert("RGBA"), grid_final)
+
+        photo = ImageTk.PhotoImage(base.convert("RGBA"))
+        # Stocker y_cut pour le dessin de la ligne budget (attribut temporaire)
+        photo._limit_y_cut = y_cut
+        photo._limit_fill = fill_step
+        if len(cache) > 40:
             cache.clear()
         cache[key] = photo
         return photo
 
+    def _draw_mesh_curve_hint(self, cv=None, W=None, H=None, ctol=None):
+        """curvature_tol — le maillage (jaune) doit épouser le relief (vert).
+        Curseur vers la DROITE (valeur basse) = plus de segments = le jaune
+        colle au vert. Les traits ROUGES = relief perdu (écart maillage/relief).
+        Un curseur blanc balaie la scène pour montrer l'écart local."""
+        import math
+        cv = self._canvases.get("mesh_hint_curv")
+        if not cv or not cv.winfo_exists():
+            return
+        W = max(120, cv.winfo_width())
+        H = max(60, cv.winfo_height())
+        if ctol is None:
+            ctol = float(self._get("curvature_tol", 16))
+        cv.delete("all")
+        tphase = getattr(self, "_t", 0)
+
+        nseg = int(3 + (30.0 - max(1.0, min(30.0, ctol))) / 29.0 * 11)
+        nseg = max(3, min(14, nseg))
+
+        pad = 8
+        x0, y0 = pad, pad
+        bw = W - 2 * pad
+        bh = H - 2 * pad - 16
+
+        def hill(t):
+            t = max(0.0, min(1.0, t))
+            p1 = math.exp(-((t - 0.32) ** 2) / (2 * 0.018))
+            p2 = math.exp(-((t - 0.72) ** 2) / (2 * 0.022))
+            base = 0.12 * math.sin(math.pi * t)
+            h = base + 0.95 * max(p1, p2 * 0.92)
+            return y0 + bh - int(bh * min(1.0, h))
+
+        # Noeuds du maillage (ligne jaune)
+        nodes = [(x0 + float(k) / nseg * bw, hill(float(k) / nseg))
+                 for k in range(nseg + 1)]
+
+        def approx_y(x):
+            for i in range(len(nodes) - 1):
+                x1, y1 = nodes[i]
+                x2, y2 = nodes[i + 1]
+                if x1 <= x <= x2 and x2 > x1:
+                    f = (x - x1) / (x2 - x1)
+                    return y1 + (y2 - y1) * f
+            return nodes[-1][1]
+
+        # 1) Zones d'erreur (relief perdu) — traits rouges
+        gap_sum = 0.0
+        gap_n = 0
+        for i in range(0, int(bw), 5):
+            x = x0 + i
+            gy = hill(i / bw)
+            ay = approx_y(x)
+            d = abs(gy - ay)
+            gap_sum += d
+            gap_n += 1
+            if d > 3:
+                cv.create_line(x, gy, x, ay, fill="#c0392b", width=2)
+        mean_gap = gap_sum / max(1, gap_n)
+
+        # 2) Relief réel (courbe verte lisse)
+        pts = []
+        for i in range(57):
+            t = i / 56.0
+            pts.extend([x0 + int(t * bw), hill(t)])
+        cv.create_line(pts, fill="#3d8f5a", width=3, smooth=True)
+
+        # 3) Maillage (ligne jaune) + noeuds
+        apts = []
+        for (nx, ny) in nodes:
+            apts.extend([nx, ny])
+        cv.create_line(apts, fill="#ffe066", width=2)
+        for (nx, ny) in nodes:
+            cv.create_oval(nx - 2, ny - 2, nx + 2, ny + 2,
+                           fill="#ffe066", outline="")
+
+        # 4) Curseur de balayage animé + repères de l'écart local
+        sx = x0 + int((tphase % 40) / 39.0 * bw)
+        gy = hill((sx - x0) / bw)
+        ay = approx_y(sx)
+        cv.create_line(sx, y0, sx, y0 + bh, fill="#ffffff", width=1, dash=(2, 3))
+        cv.create_oval(sx - 3, gy - 3, sx + 3, gy + 3,
+                       fill="#a6e3a1", outline="")
+        cv.create_oval(sx - 3, ay - 3, sx + 3, ay + 3,
+                       fill="#ffe066", outline="")
+
+        # 5) Verdict dynamique
+        if mean_gap > 10:
+            msg, col = tr("relief perdu"), "#ff8866"
+        elif mean_gap > 4:
+            msg, col = tr("relief partiel"), "#ffe066"
+        else:
+            msg, col = tr("relief suivi"), "#66ff99"
+        cv.create_text(W // 2, H - 8,
+            text=tr("maillage / relief : ") + msg,
+            fill=col, font=("TkFixedFont", 8, "bold"))
+
+    def _draw_min_angle_hint(self, cv=None, W=None, H=None, min_angle=None):
+        """min_angle : triangles 3D (étroits ↔ réguliers)."""
+        if cv is None:
+            cv = self._canvases.get("mesh_hint_angle")
+        if not cv or not cv.winfo_exists():
+            return
+        if W is None:
+            W = max(120, cv.winfo_width())
+        if H is None:
+            H = max(60, cv.winfo_height())
+        if min_angle is None:
+            min_angle = float(self._get("min_angle", 0.5))
+        # 0.1 → étroit, 2.0 → régulier
+        t = max(0.0, min(1.0, (min_angle - 0.1) / 1.9))
+        cv.delete("all")
+        cv.create_rectangle(0, 0, W, H, fill="#0a120a", outline="")
+
+        # Deux « pyramides » vues en perspective
+        def tri3d(cx, cy, scale, skinny):
+            # skinny 1 = aiguille, 0 = équilatéral
+            top = (cx, cy - int(22 * scale))
+            # base plus large si régulier
+            spread = int((8 + 18 * (1 - skinny)) * scale)
+            depth = int(10 * scale)
+            bl = (cx - spread, cy + int(14 * scale))
+            br = (cx + spread, cy + int(14 * scale))
+            bk = (cx + int(4 * scale), cy + int(14 * scale) - depth)
+            # face avant
+            cv.create_polygon(*top, *bl, *br, fill="#3a6a4a", outline="#a6e3a1")
+            # face côté
+            cv.create_polygon(*top, *br, *bk, fill="#2a4a35", outline="#88bb88")
+
+        skinny = 1.0 - t
+        tri3d(int(W * 0.28), int(H * 0.42), 1.0, skinny)
+        tri3d(int(W * 0.72), int(H * 0.48), 0.85, skinny)
+
+        if t < 0.3:
+            lbl, col = tr("triangles très étroits"), "#ff8866"
+        elif t < 0.7:
+            lbl, col = tr("angles moyens"), "#e0c080"
+        else:
+            lbl, col = tr("triangles réguliers"), "#a6e3a1"
+        cv.create_rectangle(0, H - 18, W, H, fill="#060e06", outline="")
+        cv.create_text(W // 2, H - 9, text=f"{min_angle:.1f}° — {lbl}", fill=col,
+                       font=("TkFixedFont", 8, "bold"))
+
+
+    def _draw_iterate_hint(self, cv=None, W=None, H=None, iterate=None):
+        """iterate : surface 3D de plus en plus raffinée."""
+        if cv is None:
+            cv = self._canvases.get("mesh_hint_iter")
+        if not cv or not cv.winfo_exists():
+            return
+        if W is None:
+            W = max(120, cv.winfo_width())
+        if H is None:
+            H = max(60, cv.winfo_height())
+        if iterate is None:
+            iterate = int(float(self._get("iterate", 0)))
+        iterate = max(0, min(3, iterate))
+        cv.delete("all")
+        cv.create_rectangle(0, 0, W, H, fill="#0a120a", outline="")
+
+        import math
+        # Grille perspective : plus de subdivisions si iterate haut
+        cols = 2 + iterate * 2  # 2,4,6,8
+        rows = 1 + iterate      # 1,2,3,4
+        y0, y1 = int(H * 0.25), H - 22
+        for r in range(rows + 1):
+            fy = r / rows
+            y = y0 + int((y1 - y0) * fy)
+            # largeur perspective
+            margin = int(W * (0.28 - 0.18 * fy))
+            cv.create_line(margin, y, W - margin, y, fill="#4a7a5a", width=1)
+        for c in range(cols + 1):
+            fx = c / cols
+            # ligne de fuite
+            x_near = int(W * 0.08 + fx * W * 0.84)
+            x_far = int(W * 0.30 + fx * W * 0.40)
+            cv.create_line(x_far, y0, x_near, y1, fill="#4a7a5a", width=1)
+
+        # relief ondulé sur la surface
+        pts = []
+        for c in range(cols + 1):
+            fx = c / cols
+            x = int(W * 0.08 + fx * W * 0.84)
+            y = y1 - int(8 * math.sin(fx * math.pi * (1 + iterate)))
+            pts.append((x, y))
+        for i in range(len(pts) - 1):
+            cv.create_line(*pts[i], *pts[i + 1], fill="#a6e3a1", width=2)
+
+        labels = [
+            tr("1 passe — rapide"),
+            tr("2 passes — côtes affinées"),
+            tr("3 passes — relief fin"),
+            tr("4 passes — très long"),
+        ]
+        lbl = labels[iterate]
+        col = ["#e0c080", "#a6e3a1", "#66ccff", "#ffaa66"][iterate]
+        cv.create_rectangle(0, H - 18, W, H, fill="#060e06", outline="")
+        cv.create_text(W // 2, H - 9, text=f"{iterate} — {lbl}", fill=col,
+                       font=("TkFixedFont", 8, "bold"))
+
+
     def _draw_mesh(self):
-        """Onglet Mesh : fondu fluide entre paysage soft/sharp + grilles."""
         cv = self._canvases.get("mesh")
         if not cv or not cv.winfo_exists():
             return
@@ -1078,45 +2338,250 @@ class Ortho4XP_Simulator(tk.Toplevel):
             return
         cv.delete("all")
 
-        mzl  = int(self._get("mesh_zl", 19))
-        ctol = float(self._get("curvature_tol", 16))
-        lt   = float(self._get("limit_tris", 15))
-        q    = self._mesh_quality()
+        grid_q, land_q, misalign, fill_q, mzl, ctol, lt = self._mesh_scores()
 
-        photo = self._mesh_blended_photo(W, H, q)
+        photo = self._mesh_blended_photo(
+            W, H, grid_q, land_q, misalign, fill_q)
         if photo is not None:
             cv.create_image(0, 0, anchor="nw", image=photo)
-            cv._mesh_bg = photo  # anti GC Tk
+            cv._mesh_bg = photo
+            y_cut = getattr(photo, "_limit_y_cut", 0)
+            if fill_q < 0.95 and y_cut > 8:
+                cv.create_line(0, y_cut, W, y_cut,
+                    fill="#ff8866", width=1, dash=(6, 4))
+                cv.create_text(W - 8, y_cut - 8,
+                    text=tr("limit_tris") + f" → {lt:g}M",
+                    fill="#ff8866", font=("TkFixedFont", 9, "bold"),
+                    anchor="e")
         else:
             cv.create_rectangle(0, 0, W, H, fill="#1a2a20", outline="")
             cv.create_text(W//2, H//2,
-                text=tr("Placez les 4 images dans le dossier\n"
-                        "Simulator_images/  (à la racine d'Ortho4XP)"),
+                text=tr("Placez les 4 images dans Simulator_images/"),
                 fill="#a6e3a1", font=("TkFixedFont", 11), justify="center")
 
-        # Pastille qualité (texte suit le fondu)
-        if q < 0.33:
-            q_lbl, q_col = tr("grossier — collines arrondies"), "#ffaa66"
-        elif q < 0.66:
-            q_lbl, q_col = tr("transition — relief qui se précise"), "#ffe066"
+        # Compteur limit_tris
+        cv.create_rectangle(W - 118, 8, W - 8, 36,
+            fill="#0a140a", outline="#5a7a50")
+        cv.create_text(W - 63, 22,
+            text=f"{lt:g}M",
+            fill="#ffe066" if fill_q < 0.5 else "#66ff99",
+            font=("TkFixedFont", 14, "bold"))
+
+        if misalign > 0.66:
+            c_lbl, c_col = tr("curvature → ne suit pas"), "#ffaa66"
+        elif misalign > 0.33:
+            c_lbl, c_col = tr("curvature → partiel"), "#ffe066"
         else:
-            q_lbl, q_col = tr("précis — pics et vallées nets"), "#66ff99"
+            c_lbl, c_col = tr("curvature → calé"), "#66ff99"
 
-        prec = (tr("très précis") if mzl >= 19 else
-                tr("précis") if mzl >= 17 else
-                tr("moyen") if mzl >= 15 else tr("grossier"))
+        if grid_q < 0.33:
+            g_lbl = tr("mesh_zl → grands △")
+        elif grid_q < 0.66:
+            g_lbl = tr("mesh_zl → moyen")
+        else:
+            g_lbl = tr("mesh_zl → petits △")
 
-        cv.create_rectangle(0, H - 42, W, H, fill="#060e06", outline="")
-        cv.create_text(W // 2, H - 28,
-            text=q_lbl + f"  ({int(q*100)}%)",
-            fill=q_col, font=("TkFixedFont", 11, "bold"))
-        cv.create_text(W // 2, H - 12,
-            text=f"mesh_zl {mzl} — {prec}  |  "
-                 + tr("courbure") + f" {ctol:g}  |  "
-                 + tr("limite") + f" {lt:g}M " + tr("triangles"),
-            fill="#80ff88", font=("TkFixedFont", 9))
+        if fill_q < 0.33:
+            f_lbl = tr("limit → peu de △")
+        elif fill_q < 0.7:
+            f_lbl = tr("limit → △ moyen")
+        else:
+            f_lbl = tr("limit → assez de △")
 
-    # ── Canvas IMAGERIE ────────────────────────────────────────────
+        cv.create_rectangle(0, H - 28, W, H, fill="#060e06", outline="")
+        cv.create_text(W // 2, H - 14,
+            text=f"{g_lbl}  |  {c_lbl}  |  {f_lbl}",
+            fill=c_col, font=("TkFixedFont", 9, "bold"))
+
+        # Animations dans leurs cadres (sous l'image)
+        self._draw_mesh_curve_hint()
+        self._draw_min_angle_hint()
+        self._draw_iterate_hint()
+
+    def _draw_img_smooth_hint(self):
+        """apt_smooth : piste vue en perspective (bosses → plate)."""
+        cv = self._canvases.get("img_hint_smooth")
+        if not cv or not cv.winfo_exists():
+            return
+        W = max(120, cv.winfo_width())
+        H = max(60, cv.winfo_height())
+        sm = float(self._get("apt_smoothing_pix", 8))
+        t = max(0.0, min(1.0, sm / 30.0))  # 0 = bosses, 1 = lisse
+        cv.delete("all")
+        cv.create_rectangle(0, 0, W, H, fill="#0a120a", outline="")
+
+        # Ciel + horizon
+        cv.create_rectangle(0, 0, W, int(H * 0.35), fill="#2a3a48", outline="")
+        # Sol perspective (trapèze)
+        y0, y1 = int(H * 0.38), H - 4
+        pts_ground = [2, y1, W - 2, y1, int(W * 0.62), y0, int(W * 0.38), y0]
+        cv.create_polygon(pts_ground, fill="#3a4a30", outline="")
+
+        # Piste en perspective : large devant, étroite au loin
+        def runway_y(f):
+            return y0 + int((y1 - y0) * f)
+
+        def runway_half_w(f):
+            # f=0 loin, f=1 près
+            return int((W * 0.04) + (W * 0.22) * f)
+
+        # Profil vertical de la piste (bosses selon t)
+        n = 14
+        left, right, center = [], [], []
+        for i in range(n + 1):
+            f = i / n  # 0 loin → 1 près
+            y = runway_y(f)
+            hw = runway_half_w(f)
+            # bosses : plus fortes quand t bas, amorties avec f (loin = moins visibles)
+            bump = (1.0 - t) * 7.0 * (0.4 + 0.6 * f)
+            import math
+            dy = int(bump * math.sin(i * 1.7) * math.sin(i * 0.9))
+            cx = W // 2
+            left.append((cx - hw, y + dy))
+            right.append((cx + hw, y + dy))
+            center.append((cx, y + dy))
+
+        # Surface piste
+        poly = left + list(reversed(right))
+        flat = [c for p in poly for c in p]
+        cv.create_polygon(flat, fill="#5a5a55", outline="#888")
+        # Ligne centrale
+        for i in range(len(center) - 1):
+            if i % 2 == 0:
+                cv.create_line(*center[i], *center[i + 1], fill="#e8e070", width=2)
+        # Bords
+        for i in range(len(left) - 1):
+            cv.create_line(*left[i], *left[i + 1], fill="#c0c0b0", width=1)
+            cv.create_line(*right[i], *right[i + 1], fill="#c0c0b0", width=1)
+
+        if t < 0.25:
+            lbl, col = tr("piste bosselée"), "#ff8866"
+        elif t < 0.55:
+            lbl, col = tr("piste correcte (reco)"), "#a6e3a1"
+        else:
+            lbl, col = tr("piste très lissée"), "#66ccff"
+        cv.create_rectangle(0, H - 18, W, H, fill="#060e06", outline="")
+        cv.create_text(W // 2, H - 9, text=f"{int(sm)}px — {lbl}", fill=col,
+                       font=("TkFixedFont", 8, "bold"))
+
+
+    def _draw_img_curv_hint(self):
+        """apt_curv_tol : virage taxiway en perspective (suit / simplifie)."""
+        cv = self._canvases.get("img_hint_curv")
+        if not cv or not cv.winfo_exists():
+            return
+        W = max(120, cv.winfo_width())
+        H = max(60, cv.winfo_height())
+        act = float(self._get("apt_curv_tol", 1.5))
+        # bas = précis (suit), haut = simplifié
+        t = max(0.0, min(1.0, (act - 0.5) / 5.0))
+        cv.delete("all")
+        cv.create_rectangle(0, 0, W, H, fill="#0a120a", outline="")
+        # Sol
+        cv.create_rectangle(0, int(H * 0.45), W, H, fill="#2a3a28", outline="")
+
+        import math
+        # Courbe réelle (vert) — S en perspective
+        real = []
+        for i in range(24):
+            u = i / 23.0
+            x = int(W * 0.12 + u * W * 0.76)
+            y = int(H * 0.78 - 18 * math.sin(u * math.pi * 1.5)
+                    - u * H * 0.25)
+            real.append((x, y))
+        for i in range(len(real) - 1):
+            cv.create_line(*real[i], *real[i + 1], fill="#55aa66", width=2)
+
+        # Mesh (jaune) : moins de points si t haut
+        n_pts = max(3, int(12 - t * 9))
+        mesh = []
+        for i in range(n_pts):
+            u = i / max(1, n_pts - 1)
+            x = int(W * 0.12 + u * W * 0.76)
+            # suit moins bien si simplifié
+            amp = 18 * (1.0 - 0.65 * t)
+            y = int(H * 0.78 - amp * math.sin(u * math.pi * 1.5)
+                    - u * H * 0.25)
+            mesh.append((x, y))
+        for i in range(len(mesh) - 1):
+            cv.create_line(*mesh[i], *mesh[i + 1], fill="#ffe066", width=2)
+        for x, y in mesh:
+            cv.create_oval(x - 3, y - 3, x + 3, y + 3, fill="#ffe066", outline="")
+
+        if t < 0.35:
+            lbl, col = tr("suit les virages"), "#a6e3a1"
+        elif t < 0.7:
+            lbl, col = tr("assez précis"), "#e0c080"
+        else:
+            lbl, col = tr("contour simplifié"), "#ff8866"
+        cv.create_rectangle(0, H - 18, W, H, fill="#060e06", outline="")
+        cv.create_text(W // 2, H - 9, text=f"tol {act:.1f} — {lbl}", fill=col,
+                       font=("TkFixedFont", 8, "bold"))
+
+
+    def _draw_img_segs_hint(self):
+        """levelled_segs : routes en perspective sur colline (nivelées / non)."""
+        cv = self._canvases.get("img_hint_segs")
+        if not cv or not cv.winfo_exists():
+            return
+        W = max(120, cv.winfo_width())
+        H = max(60, cv.winfo_height())
+        segs = float(self._get("max_levelled_segs", 200000))
+        t = max(0.0, min(1.0, segs / 500000.0))
+        cv.delete("all")
+        cv.create_rectangle(0, 0, W, H, fill="#0a120a", outline="")
+        # Colline perspective
+        cv.create_polygon(
+            0, H, 0, int(H * 0.55), int(W * 0.35), int(H * 0.35),
+            int(W * 0.7), int(H * 0.42), W, int(H * 0.5), W, H,
+            fill="#2a4a30", outline="")
+        cv.create_rectangle(0, 0, W, int(H * 0.32), fill="#1a2830", outline="")
+
+        # 5 routes : plus de jaunes (nivelées) quand t monte
+        n_on = int(round(t * 5))
+        routes = [
+            # (points path, is_far)
+            ([(int(W*0.05), int(H*0.85)), (int(W*0.25), int(H*0.70)),
+              (int(W*0.40), int(H*0.55))], False),
+            ([(int(W*0.10), int(H*0.90)), (int(W*0.45), int(H*0.65)),
+              (int(W*0.60), int(H*0.48))], False),
+            ([(int(W*0.55), int(H*0.88)), (int(W*0.70), int(H*0.60)),
+              (int(W*0.85), int(H*0.45))], False),
+            ([(int(W*0.20), int(H*0.75)), (int(W*0.50), int(H*0.50)),
+              (int(W*0.75), int(H*0.38))], True),
+            ([(int(W*0.65), int(H*0.80)), (int(W*0.80), int(H*0.58)),
+              (int(W*0.92), int(H*0.42))], True),
+        ]
+        for i, (path, far) in enumerate(routes):
+            on = i < n_on
+            if on:
+                col, w = "#ffe066", 3
+            else:
+                col, w = "#777766", 2
+                # bosselé si non nivelé
+                path = [(x, y + (3 if j % 2 else -2)) for j, (x, y) in enumerate(path)]
+            for j in range(len(path) - 1):
+                cv.create_line(*path[j], *path[j + 1], fill=col, width=w)
+            # marqueur
+            x, y = path[0]
+            if on:
+                cv.create_oval(x - 4, y - 4, x + 4, y + 4, fill="#66ff99", outline="")
+            else:
+                cv.create_line(x - 4, y - 4, x + 4, y + 4, fill="#ff6666", width=2)
+                cv.create_line(x - 4, y + 4, x + 4, y - 4, fill="#ff6666", width=2)
+
+        k = int(segs / 1000)
+        if t < 0.2:
+            lbl, col = tr("presque aucune nivelée"), "#ff8866"
+        elif t < 0.7:
+            lbl, col = f"{n_on}/5 " + tr("nivelées"), "#e0c080"
+        else:
+            lbl, col = tr("presque toutes nivelées"), "#a6e3a1"
+        cv.create_rectangle(0, H - 18, W, H, fill="#060e06", outline="")
+        cv.create_text(W // 2, H - 9, text=f"{k}k — {lbl}", fill=col,
+                       font=("TkFixedFont", 8, "bold"))
+
+
     def _draw_imagerie(self):
         cv = self._canvases.get("imagerie")
         if not cv or not cv.winfo_exists():
@@ -1209,65 +2674,112 @@ class Ortho4XP_Simulator(tk.Toplevel):
         if dzl >= 17:
             cv.create_image(0, 0, anchor="nw", image=self._join_tk)
 
-        # ── CERCLES cover_extent en km ──────────────────────────
+        # ── ZONE AÉROPORT (cover_extent / HiRes / curv) ───────────
+        r_main = max(12, int(cext * km_px))
+        r_ext  = int((cext + ace * 0.5) * km_px)
+        r_tol  = max(20, int(r_main * (act / 6.0)))
+
         if apt == "True":
-            zl_col = "#88ff44"
-            zl_w   = 3.0 if czl >= 19 else 2.5
+            # Disque semi-transparent = zone haute résolution active
+            try:
+                from PIL import Image as _P, ImageDraw as _D, ImageTk as _T
+                disc = _P.new("RGBA", (W, H), (0, 0, 0, 0))
+                dr = _D.Draw(disc)
+                # Couleur selon cover_zl (plus clair = plus net)
+                bright = 80 + min(140, (czl - 14) * 20)
+                dr.ellipse(
+                    [ax - r_main, ay - r_main, ax + r_main, ay + r_main],
+                    fill=(80, bright, 100, 70))
+                cv._pk_hirez = _T.PhotoImage(disc)
+                cv.create_image(0, 0, anchor="nw", image=cv._pk_hirez)
+            except Exception:
+                pass
+            zl_col, zl_w = "#88ff44", 3.0 if czl >= 19 else 2.5
+            cv.create_oval(ax - r_main, ay - r_main,
+                           ax + r_main, ay + r_main,
+                           outline=zl_col, width=zl_w)
+            # Badge HiRes ON
+            cv.create_rectangle(ax - 48, ay - r_main - 28,
+                                ax + 48, ay - r_main - 8,
+                                fill="#0a1a0a", outline=zl_col)
+            cv.create_text(ax, ay - r_main - 18,
+                text=tr("HiRes ON") + f"  ZL{czl}",
+                fill=zl_col, font=("TkFixedFont", 10, "bold"))
+            # Rayon en km
+            cv.create_text(ax + r_main + 4, ay,
+                text=f"{cext:.1f} km", fill=zl_col,
+                font=("TkFixedFont", 9, "bold"), anchor="w")
         else:
-            zl_col = "#557755"
-            zl_w   = 1.5
-        r_main = int(cext * km_px)
-        cv.create_oval(ax - r_main, ay - r_main,
-                       ax + r_main, ay + r_main,
-                       outline=zl_col, width=zl_w)
-        r_ext = int((cext + ace * 0.5) * km_px)
+            # HiRes OFF : cercle grisé + message clair
+            cv.create_oval(ax - r_main, ay - r_main,
+                           ax + r_main, ay + r_main,
+                           outline="#556655", width=1, dash=(4, 3))
+            cv.create_rectangle(ax - 70, ay - 18, ax + 70, ay + 18,
+                fill="#1a1010", outline="#ff8866")
+            cv.create_text(ax, ay,
+                text=tr("HiRes OFF — ZL défaut"),
+                fill="#ff8866", font=("TkFixedFont", 10, "bold"))
+
+        # Extensions courbure (toujours visibles mais atténuées si OFF)
+        o_col = "#ff8844" if apt == "True" else "#664422"
+        t_col = "#44aaff" if apt == "True" else "#335566"
         if r_ext > r_main + 5:
             cv.create_oval(ax - r_ext, ay - r_ext,
                            ax + r_ext, ay + r_ext,
-                           outline="#ff8844", width=1.5, dash=(5, 3))
-        r_tol = max(25, int(r_main * (act / 6.0)))
+                           outline=o_col, width=1.5, dash=(5, 3))
         cv.create_oval(ax - r_tol, ay - r_tol,
                        ax + r_tol, ay + r_tol,
-                       outline="#44aaff", width=1.5, dash=(3, 4))
-        if apt == "True":
-            cv.create_rectangle(ax - 28, ay - r_main - 24,
-                                ax + 28, ay - r_main - 7,
-                                fill="#0a1a0a", outline=zl_col)
-            cv.create_text(ax, ay - r_main - 15,
-                text=f"ZL{czl}", fill=zl_col,
-                font=("TkFixedFont", 11, "bold"), anchor="center")
+                       outline=t_col, width=1.5, dash=(3, 4))
+
+        # Indicateur netteté default_zl (coin bas-gauche)
+        blur_lbl = (
+            tr("image floue") if dzl <= 15 else
+            tr("image standard") if dzl <= 17 else
+            tr("image nette") if dzl <= 19 else
+            tr("image ultra-nette"))
+        cv.create_rectangle(6, H - 48, 150, H - 28,
+            fill="#0a140a", outline="#5a7a50")
+        cv.create_text(78, H - 38,
+            text=f"default_zl {dzl} — {blur_lbl}",
+            fill="#a6e3a1", font=("TkFixedFont", 8))
 
         # ── LÉGENDE ────────────────────────────────────────────────
         legend = [
-            ("#88ff44" if apt=="True" else "#557755", (),
-             f"cover_extent {cext:.1f}km ZL{czl}"),
-            ("#ffee44", (), tr('zone aéroport XP12')),
-            ("#7a9a7a", (), f"jointure {asmp}px  (dzl>=17)"),
-            ("#ff8844", (), f"curv_ext +{ace:.1f}km"),
-            ("#44aaff", (), f"curv_tol {act:.1f}"),
-            ("#aaaaaa", (), f"routes niv.{rl}"),
+            ("#88ff44" if apt == "True" else "#556655",
+             tr("HiRes") + (" ON" if apt == "True" else " OFF")),
+            ("#88ff44", f"cover_extent {cext:.1f} km"),
+            ("#66ccff", f"cover_zl ZL{czl}"),
+            ("#ff8844", f"curv_ext +{ace:.1f} km"),
+            ("#44aaff", f"curv_tol {act:.1f}"),
+            ("#aaaaaa", tr("routes") + f" niv.{rl}"),
         ]
-        lx = W - 168; ly = 4
-        cv.create_rectangle(lx - 2, ly, W - 2, ly + len(legend)*17 + 4,
+        lx, ly = W - 176, 4
+        cv.create_rectangle(lx - 2, ly, W - 2, ly + len(legend) * 16 + 6,
             fill="#081008", outline="")
-        for j, (col, dash, lbl) in enumerate(legend):
-            y_ = ly + 10 + j * 17
-            if dash:
-                cv.create_line(lx + 2, y_, lx + 22, y_,
-                    fill=col, width=1.5, dash=dash)
-            else:
-                cv.create_rectangle(lx + 4, y_ - 4, lx + 20, y_ + 4,
-                    fill=col, outline="")
-            cv.create_text(lx + 26, y_, text=lbl, fill=col,
-                anchor="w", font=("TkFixedFont", 9))
+        for j, (col, lbl) in enumerate(legend):
+            y_ = ly + 10 + j * 16
+            cv.create_rectangle(lx + 4, y_ - 4, lx + 16, y_ + 4,
+                fill=col, outline="")
+            cv.create_text(lx + 22, y_, text=lbl, fill=col,
+                anchor="w", font=("TkFixedFont", 8))
 
         # ── BARRE ÉTAT ─────────────────────────────────────────────
-        qual_lbl = "HD ZL20" if dzl>=20 else f"ZL{dzl} — {'HD' if dzl>=19 else 'SD' if dzl>=17 else 'LD'}"
-        apt_lbl  = (tr("aéroport ZL") + f"{czl} ±{cext:.1f}km") if apt=="True" else tr("aéroport: ZL défaut")
+        qual_lbl = (
+            "HD ZL20" if dzl >= 20 else
+            f"ZL{dzl} — {'HD' if dzl >= 19 else 'SD' if dzl >= 17 else 'LD'}")
+        if apt == "True":
+            apt_lbl = tr("aéroport") + f" HiRes ZL{czl} ±{cext:.1f}km"
+        else:
+            apt_lbl = tr("aéroport: même ZL que le reste (HiRes OFF)")
         cv.create_rectangle(0, H - 22, W, H, fill="#061006", outline="")
         cv.create_text(W // 2, H - 11,
-            text=f"imagerie {qual_lbl}  |  routes niv.{rl}  |  {apt_lbl}",
+            text=f"{qual_lbl}  |  {apt_lbl}  |  " + tr("routes") + f" {rl}",
             fill="#e0c080", font=("TkFixedFont", 9))
+
+        # Vignettes pédagogiques
+        self._draw_img_smooth_hint()
+        self._draw_img_curv_hint()
+        self._draw_img_segs_hint()
 
     # ── Ouverture fenêtre Vue Tuile ───────────────────────────────
     def _open_tile_view(self):

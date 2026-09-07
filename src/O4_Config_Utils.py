@@ -924,10 +924,12 @@ class Ortho4XP_Config(tk.Toplevel):
 
         # Frames placement
         self.main_frame.grid(row=0, column=0, sticky=N + S + W + E)
-        self.frame_cfg.grid(row=0, column=0, pady=10, sticky=N + S + E + W)
+        # Bouton « Mode » remonté tout en haut, au-dessus des rubriques
+        # (au-dessus de « Données vectorielles »).
         self.frame_mode.grid(
-            row=1, column=0, pady=(0, 4), sticky=N + S + E + W
+            row=0, column=0, pady=(10, 8), sticky=N + S + E + W
         )
+        self.frame_cfg.grid(row=1, column=0, pady=10, sticky=N + S + E + W)
         self.frame_lastbtn.grid(row=2, column=0, pady=10, sticky=N + S + E + W)
 
         # Variables and widgets and their placement
@@ -941,26 +943,29 @@ class Ortho4XP_Config(tk.Toplevel):
 
         col = 0
         next_row = 0
+        self._tile_titles = []
         for (title, sub_list) in (
             (_L("Donnees vectorielles", "Vector data"), list_vector_vars),
             (_L("Maillage", "Mesh"), list_mesh_vars),
             (_L("Masques", "Masks"), list_mask_vars),
             (_L("DSF/Imagerie", "DSF/Imagery"), list_dsf_vars),
         ):
-            tk.Label(
+            _title_lbl = tk.Label(
                 self.frame_cfg,
                 text=title,
                 bg="#3b5b49",
                 fg="#e8f0ec",
                 anchor=W,
                 font="TKFixedFont 14",
-            ).grid(
+            )
+            _title_lbl.grid(
                 row=0,
                 column=col,
                 columnspan=2,
                 pady=(0, 10),
                 sticky=N + S + E + W,
             )
+            self._tile_titles.append(_title_lbl)
             row = 1
             for item in sub_list:
                 text = (
@@ -1083,14 +1088,15 @@ class Ortho4XP_Config(tk.Toplevel):
             row=row, column=0, columnspan=8, sticky=N + S + E + W
         )
         row += 1
-        tk.Label(
+        self._app_title = tk.Label(
             self.frame_cfg,
             text=_L("Application ", "Application "),
             bg="#3b5b49",
             fg="#e8f0ec",
             anchor=W,
             font="TKFixedFont 14",
-        ).grid(row=row, column=0, columnspan=4, pady=10, sticky=N + S + E + W)
+        )
+        self._app_title.grid(row=row, column=0, columnspan=4, pady=10, sticky=N + S + E + W)
         row += 1
 
         l = ceil((len(gui_app_vars_short)) / 4)
@@ -1278,7 +1284,9 @@ class Ortho4XP_Config(tk.Toplevel):
         # coloration des CTkButton pour que les boutons desactives restent
         # visuellement grises au repos.
         self.after_idle(lambda: self._set_mode("tile"))
-
+        self.update_idletasks()
+        self.minsize(self.winfo_reqwidth(), self.winfo_reqheight())
+        
     def _open_simulator(self):
         try:
             import O4_GUI_Utils as _GUI
@@ -1339,6 +1347,29 @@ class Ortho4XP_Config(tk.Toplevel):
             )
             try:
                 self.button_toggle.configure(text=label + "  \u21c4")
+            except Exception:
+                pass
+        # Identification visuelle du mode actif : titres du mode courant en
+        # gras + clairs, titres de l'autre mode en gris.
+        _active_font = "TKFixedFont 14 bold"
+        _idle_font = "TKFixedFont 14"
+        _bright = "#e8f0ec"
+        _dim = "#7a938a"
+        for _lbl in getattr(self, "_tile_titles", []):
+            try:
+                _lbl.configure(
+                    font=(_active_font if is_tile else _idle_font),
+                    fg=(_bright if is_tile else _dim),
+                )
+            except Exception:
+                pass
+        _app_lbl = getattr(self, "_app_title", None)
+        if _app_lbl is not None:
+            try:
+                _app_lbl.configure(
+                    font=(_idle_font if is_tile else _active_font),
+                    fg=(_dim if is_tile else _bright),
+                )
             except Exception:
                 pass
 
