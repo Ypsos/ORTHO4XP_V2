@@ -1,6 +1,6 @@
 # ============================================================
-#  Ortho4XP_V3 — .gitignore
-#  À placer à la RACINE de votre dossier Ortho4XP_V3
+# Ortho4XP_V3 — .gitignore
+# À placer à la RACINE de votre dossier Ortho4XP_V3
 # ============================================================
 
 # ── Dossiers de données lourds personnels ───────────────────
@@ -21,6 +21,11 @@ Geotiffs/
 
 # ── Cache tuiles généré par O4_Dependency.py ────────────────
 Ortho/
+
+# ── Dossiers de tuiles construites par Ortho4XP (zOrtho4XP_+LATLON) ──
+# Contenu généré à chaque build (.alt, .node, .poly, .ter, .apt,
+# textures, DSF...) — ne JAMAIS publier sur GitHub.
+zOrtho4XP_*/
 
 # ── Providers personnels (garder uniquement Global et O4_Custom_URL.py) ──
 Providers/Austria/
@@ -65,13 +70,12 @@ Ortho4XP.cfg
 *.ccorr
 *.comb
 
-# ── Fichiers DDS / textures (très lourds) ───────────────────
+# ── DDS / textures (très lourds) ────────────────────────────
 *.dds
 *.DDS
 *.jpg
 *.JPG
 *.jpeg
-
 # Exceptions JPG pour Utils/
 !Utils/*.jpg
 !Utils/*.JPG
@@ -86,7 +90,6 @@ Ortho4XP.cfg
 *.tif
 *.tiff
 *.geotiff
-
 # Exceptions PNG — ordre impératif : dossier d'abord, fichiers ensuite
 !Utils/
 !Utils/*.png
@@ -99,6 +102,15 @@ Ortho4XP.cfg
 *.DSF
 *.tri
 *.pol
+
+# ── Fichiers de tuiles construites (extensions dédiées) ─────
+# Complément à zOrtho4XP_*/ : couvre ces fichiers même hors dossier.
+*.alt
+*.node
+*.poly
+*.apt
+*.apt.sig
+*.ter
 
 # ── Logs et fichiers temporaires ────────────────────────────
 *.log
@@ -154,7 +166,7 @@ Lanceur ORTHO4XP.app/
 Lanceur_Installation_Prerequis_MAC.zip
 Filters/
 
-# ── Données et dossiers locaux perso Ortho4XP ────────────────────────────────
+# ── Données et dossiers locaux perso Ortho4XP ───────────────
 *copie*
 Patches/
 _backups_O4/
