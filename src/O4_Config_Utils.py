@@ -944,6 +944,7 @@ class Ortho4XP_Config(tk.Toplevel):
         col = 0
         next_row = 0
         self._tile_titles = []
+        self._tile_field_btns = []
         for (title, sub_list) in (
             (_L("Donnees vectorielles", "Vector data"), list_vector_vars),
             (_L("Maillage", "Mesh"), list_mesh_vars),
@@ -973,16 +974,18 @@ class Ortho4XP_Config(tk.Toplevel):
                     if "short_name" not in cfg_vars[item]
                     else cfg_vars[item]["short_name"]
                 )
-                _ctk_button(
+                _fbtn = _ctk_button(
                     self.frame_cfg,
                     text=text,
                     takefocus=False,
                     command=lambda item=item: self.popup(
                         item, cfg_vars[item]["hint"]
                     ),
-                ).grid(
+                )
+                _fbtn.grid(
                     row=row, column=col, padx=2, pady=2, sticky=E + W + N + S
                 )
+                self._tile_field_btns.append(_fbtn)
                 if cfg_vars[item]["type"] == bool or "values" in cfg_vars[item]:
                     values = (
                         [True, False]
@@ -1102,6 +1105,7 @@ class Ortho4XP_Config(tk.Toplevel):
         l = ceil((len(gui_app_vars_short)) / 4)
         this_row = row
         j = 0
+        self._app_field_btns = []
         for item in gui_app_vars_short:
             col = 2 * (j // l)
             row = this_row + j % l
@@ -1110,14 +1114,16 @@ class Ortho4XP_Config(tk.Toplevel):
                 if "short_name" not in cfg_vars[item]
                 else cfg_vars[item]["short_name"]
             )
-            _ctk_button(
+            _afbtn = _ctk_button(
                 self.frame_cfg,
                 text=text,
                 takefocus=False,
                 command=lambda item=item: self.popup(
                     item, cfg_vars[item]["hint"]
                 ),
-            ).grid(row=row, column=col, padx=2, pady=2, sticky=E + W + N + S)
+            )
+            _afbtn.grid(row=row, column=col, padx=2, pady=2, sticky=E + W + N + S)
+            self._app_field_btns.append(_afbtn)
             if cfg_vars[item]["type"] == bool or "values" in cfg_vars[item]:
                 values = (
                     ["True", "False"]
@@ -1250,6 +1256,14 @@ class Ortho4XP_Config(tk.Toplevel):
             text=_L("Mode : Config Tuile", "Mode: Tile Config") + "  \u21c4",
             command=self._toggle_mode,
         )
+        # Bouton Mode agrandi (plus visible en haut de la fenetre).
+        try:
+            self.button_toggle.configure(
+                height=46, width=280,
+                font=("TkDefaultFont", 16, "bold"),
+            )
+        except Exception:
+            pass
         self.button_toggle.grid(
             row=0, column=0, padx=5, pady=self.pady, sticky=W
         )
@@ -1284,9 +1298,7 @@ class Ortho4XP_Config(tk.Toplevel):
         # coloration des CTkButton pour que les boutons desactives restent
         # visuellement grises au repos.
         self.after_idle(lambda: self._set_mode("tile"))
-        self.update_idletasks()
-        self.minsize(self.winfo_reqwidth(), self.winfo_reqheight())
-        
+
     def _open_simulator(self):
         try:
             import O4_GUI_Utils as _GUI
@@ -1372,6 +1384,30 @@ class Ortho4XP_Config(tk.Toplevel):
                 )
             except Exception:
                 pass
+        # Les boutons de chaque rubrique suivent le ton de leur titre :
+        # rubrique active = boutons clairs, rubrique inactive = boutons gris
+        # (les boutons restent cliquables dans les deux cas).
+        try:
+            import O4_Theme_Manager as _TM
+            _theme = _TM.get_theme()
+        except Exception:
+            _theme = {}
+        _btn_fg = _theme.get("btn_fg", "#ffffff")
+        _btn_bg = _theme.get("btn_bg", "#4a6b59")
+        _btn_fg_dim = "#93a89e"
+        _btn_bg_dim = _lighten_hex(_btn_bg, 0.70)
+
+        def _style_btns(_btns, _active):
+            for _b in _btns:
+                try:
+                    _b.configure(
+                        text_color=(_btn_fg if _active else _btn_fg_dim),
+                        fg_color=(_btn_bg if _active else _btn_bg_dim),
+                    )
+                except Exception:
+                    pass
+        _style_btns(getattr(self, "_tile_field_btns", []), is_tile)
+        _style_btns(getattr(self, "_app_field_btns", []), not is_tile)
 
     def _tile_cfg_info(self):
         """(lat, lon, build_dir, path_ou_None) pour la tuile active."""

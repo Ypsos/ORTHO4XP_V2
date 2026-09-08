@@ -91,7 +91,8 @@ class DEM:
             else:
                 source = available_sources[1]
         if ";" in source:
-            source, local_sources = source.split(";")[0], source.split(";")[1:]
+            parts = [p.strip() for p in source.split(";")]
+            source, local_sources = parts[0], parts[1:]
         else:
             local_sources = None
         if source in available_sources[1::2]:
@@ -218,7 +219,43 @@ class DEM:
         return
 
     def write_to_file(self, filename):
-        self.alt_dem.astype(numpy.float32).tofile(filename)
+        if getattr(self, "subdems", None):
+            blended = self.alt_dem.copy()
+            rows = numpy.arange(self.nydem)
+            cols = numpy.arange(self.nxdem)
+            lat_1d = self.y1 - rows / (self.nydem - 1) * (self.y1 - self.y0)
+            lon_1d = self.x0 + cols / (self.nxdem - 1) * (self.x1 - self.x0)
+            lon_grid, lat_grid = numpy.meshgrid(lon_1d, lat_1d)
+            for subdem in self.subdems:
+                nx = numpy.round(
+                    (lon_grid - subdem.x0) / (subdem.x1 - subdem.x0)
+                    * (subdem.nxdem - 1)
+                ).astype(numpy.int64)
+                ny_from_north = numpy.round(
+                    (subdem.y1 - lat_grid) / (subdem.y1 - subdem.y0)
+                    * (subdem.nydem - 1)
+                ).astype(numpy.int64)
+                in_bounds = (
+                    (lon_grid >= subdem.x0) & (lon_grid <= subdem.x1)
+                    & (lat_grid >= subdem.y0) & (lat_grid <= subdem.y1)
+                )
+                nx_clipped = numpy.clip(nx, 0, subdem.nxdem - 1)
+                ny_clipped = numpy.clip(ny_from_north, 0, subdem.nydem - 1)
+                sub_vals = subdem.alt_dem[ny_clipped, nx_clipped]
+                override_mask = in_bounds & (sub_vals != subdem.nodata)
+                blended[override_mask] = sub_vals[override_mask]
+            try:
+                UI.vprint(
+                    1, "   INFO: Blended", len(self.subdems),
+                    "custom_dem override(s) into raster for Triangle4XP (",
+                    int(numpy.sum(blended != self.alt_dem)),
+                    "of", blended.size, "pixels overridden).",
+                )
+            except Exception:
+                pass
+            blended.astype(numpy.float32).tofile(filename)
+        else:
+            self.alt_dem.astype(numpy.float32).tofile(filename)
         return
 
     def create_normal_map(self, pixx, pixy):

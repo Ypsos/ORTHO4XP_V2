@@ -2768,13 +2768,11 @@ def convert_texture(
             conv_cmd = [
                 dds_convert_cmd, "-bc1", "-fast", file_to_convert,
                 os.path.join(tile.build_dir, "textures", out_file_name),
-                devnull_rdir,
             ]
         else:
             conv_cmd = [
                 dds_convert_cmd, "-bc3", "-fast", file_to_convert,
                 os.path.join(tile.build_dir, "textures", out_file_name),
-                devnull_rdir,
             ]
     else:
         (latmax, lonmin) = GEO.gtile_to_wgs84(til_x_left, til_y_top, zoomlevel)
@@ -2817,25 +2815,47 @@ def convert_texture(
                 tmp_tif_file_name,
                 os.path.join(FNAMES.Geotiff_dir, out_file_name),
             ]
+    if type == "dds":
+        expected_output = os.path.join(
+            tile.build_dir, "textures", out_file_name
+        )
+    else:
+        expected_output = os.path.join(FNAMES.Geotiff_dir, out_file_name)
     tentative = 0
+    conversion_ok = False
     while True:
-        if not subprocess.call(
+        return_code = subprocess.call(
             conv_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT
-        ):
+        )
+        if not return_code and os.path.isfile(expected_output):
+            conversion_ok = True
             break
         tentative += 1
         if tentative == 10:
             UI.lvprint(
                 1, "ERROR: Could not convert texture",
-                os.path.join(tile.build_dir, "textures", out_file_name),
-                "(10 tries)",
+                expected_output,
+                "(10 tries) - exit code", return_code,
+                "- output present:", os.path.isfile(expected_output),
             )
             break
         UI.lvprint(
             1, "WARNING: Could not convert texture",
-            os.path.join(tile.build_dir, "textures", out_file_name),
+            expected_output,
         )
         time.sleep(1)
+    if not conversion_ok:
+        # Une texture manquante ici signifie que le .ter qui la reference
+        # pointerait vers un fichier jamais cree : c'est ce qui fait FIGER
+        # X-Plane au chargement au lieu d'echouer proprement. On traite donc
+        # cela comme fatal pour ce build (UI.red_flag) plutot que de
+        # continuer silencieusement.
+        UI.lvprint(
+            1,
+            "ERROR: Aborting build - texture conversion failed and no "
+            "fallback texture exists:", expected_output,
+        )
+        UI.red_flag = True
     if erase_tmp_png:
         try:
             os.remove(os.path.join(UI.Ortho4XP_dir, "tmp", png_file_name))

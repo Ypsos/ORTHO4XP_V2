@@ -1282,12 +1282,28 @@ def build_tile(tile):
                             UI.vprint(2, '   [SeaTex] Passage 2 erreur : ' + str(_ep2))
                     if _done_p2 >= 1:
                         UI.vprint(1, tr("   [SeaTex] Passage 2 terminé — {n} DDS générés.").format(n=_done_p2))
-    UI.vprint(1, " *Activating DSF file.")
     dsf_file_name = os.path.join(
         tile.build_dir,
         "Earth nav data",
         FNAMES.long_latlon(tile.lat, tile.lon) + ".dsf",
     )
+    if UI.red_flag:
+        # Une conversion de texture (ou une autre etape) a echoue. NE PAS
+        # activer le DSF : un DSF actif dont les .ter referencent des textures
+        # jamais ecrites est exactement ce qui fait FIGER X-Plane au
+        # chargement au lieu d'echouer proprement. Le ".dsf.tmp" non renomme
+        # est laisse en place pour que l'echec soit visible plutot que livre
+        # silencieusement. Le nettoyage des PNG masques cotiers (ci-dessous)
+        # n'est donc PAS execute non plus : rien n'est touche sur un build
+        # en echec.
+        UI.lvprint(
+            1,
+            "ERROR: Build had errors - DSF left inactive at",
+            dsf_file_name + ".tmp",
+        )
+        UI.exit_message_and_bottom_line()
+        return 0
+    UI.vprint(1, " *Activating DSF file.")
     try:
         os.replace(dsf_file_name + ".tmp", dsf_file_name)
     except:
@@ -1315,9 +1331,6 @@ def build_tile(tile):
                         os.remove(os.path.join(_tex_dir, _f))
                     except:
                         pass
-    if UI.red_flag:
-        UI.exit_message_and_bottom_line()
-        return 0
     if UI.cleaning_level > 1:
         try:
             os.remove(FNAMES.alt_file(tile))
