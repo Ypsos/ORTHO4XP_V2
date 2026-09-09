@@ -474,8 +474,26 @@ def extract_elevation_and_bathymetry_data(lat, lon):
                         # XP bathy data for inland water is only partial,
                         # we use a safe margin = DEM_elev - 2 to cope with it
                         bathy = numpy.frombuffer(bDATA, dtype=numpy.int16)
-                        safe  = numpy.frombuffer(bELEV, dtype=numpy.int16) - 2 
-                        bathy = numpy.minimum(bathy, safe)
+                        safe  = numpy.frombuffer(bELEV, dtype=numpy.int16) - 2
+                        # H-01 : sur une tuile Global Scenery normale les deux
+                        # sous-atomes ont la meme taille et le clamp s'applique
+                        # a l'identique. Si les tailles different (tuile
+                        # atypique / DSF partiel), on evite le plantage numpy
+                        # broadcast : on garde la bathymetrie brute et on
+                        # signale, sans jeter toute la bathymetrie ni bloquer.
+                        if bathy.shape == safe.shape:
+                            bathy = numpy.minimum(bathy, safe)
+                        else:
+                            UI.vprint(
+                                1,
+                                "   WARNING / AVERTISSEMENT: bathymetry and"
+                                " elevation raster sizes differ",
+                                bathy.shape, "vs", safe.shape,
+                                "- safe-margin clamp skipped, raw bathymetry"
+                                " kept for this tile. | tailles bathymetrie/"
+                                "elevation differentes - ajustement saute,"
+                                " bathymetrie brute conservee pour cette tuile.",
+                            )
                         bDATA = bytes(bathy)
                 bDEMS += bH + bL + bDATA
                 consumed += sub_atom_len

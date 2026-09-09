@@ -1291,6 +1291,17 @@ class Ortho4XP_GUI(tk.Tk):
         lat = int(self.lat.get() or 48)
         lon = int(self.lon.get() or -6)
         tile = CFG.Tile(lat, lon, self.custom_build_dir.get() or "")
+        # Charge UNIQUEMENT zone_list depuis le cfg tuile sauvegarde, via une
+        # tuile-sonde jetable (meme schema que save_zone_list plus bas, deja
+        # valide). Sans ca, un Step 3 seul (do_ptc faux) ne rechargeait jamais
+        # zone_list -> les zones d'imagerie dessinees/sauvees etaient ignorees.
+        # On ne recopie QUE zone_list : pas de rechargement de custom_dem, etc.
+        try:
+            _probe = CFG.Tile(lat, lon, self.custom_build_dir.get() or "")
+            _probe.read_from_config()
+            tile.zone_list = _probe.zone_list
+        except Exception as e:
+            UI.vprint(1, "   WARNING: chargement zone_list impossible:", e)
         tile.default_website = self.default_website.get() or "BI"
         tile.default_zl = int(self.default_zl.get() or 16)
         return tile
@@ -2091,19 +2102,13 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
         return
 
     def show_tile_preview(self, filepreview, lat, lon):
-        for item in self.polyobj_list:
-            try:
-                self.canvas.delete(item)
-            except:
-                pass
-        try:
-            self.canvas.delete(self.img_map)
-        except:
-            pass
-        try:
-            self.canvas.delete(self.boundary)
-        except:
-            pass
+        # Cette fonction tourne dans un thread secondaire. Elle NE fait ici que
+        # l'attente (bloquante) du fichier de preview ; tout le dessin canvas
+        # est ensuite renvoye sur le thread principal tkinter via
+        # canvas.after(0, ...) -> voir _render_tile_preview. Sans ca, dessiner
+        # de nombreuses zones sauvees (grosse zone_list) depuis ce thread
+        # secondaire faisait planter Tkinter (Tk n'est pas thread-safe). On
+        # reutilise le meme patron after() que l'overlay aeroports plus bas.
         try:
             self.ctp_thread.join()
         except:
@@ -2117,6 +2122,26 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
         if not os.path.isfile(filepreview):
             UI.vprint(0, tr("Preview non générée :"), filepreview)
             return
+        self.canvas.after(
+            0, lambda: self._render_tile_preview(filepreview, lat, lon)
+        )
+
+    def _render_tile_preview(self, filepreview, lat, lon):
+        # Execute sur le thread principal tkinter (appelee via canvas.after(0)).
+        # Contient TOUTES les operations canvas de la preview.
+        for item in self.polyobj_list:
+            try:
+                self.canvas.delete(item)
+            except:
+                pass
+        try:
+            self.canvas.delete(self.img_map)
+        except:
+            pass
+        try:
+            self.canvas.delete(self.boundary)
+        except:
+            pass
         self.image = Image.open(filepreview)
         self._image_orig = self.image.copy()
         self._zoom_scale = 1.0

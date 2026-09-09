@@ -237,39 +237,62 @@ def build_curv_tol_weight_map(tile, weight_array):
 def post_process_nodes_altitudes(tile):
     dico_attributes = VECT.Vector_Map.dico_attributes
     f_node = open(FNAMES.output_node_file(tile), "r")
-    init_line_f_node = f_node.readline()
-    nbr_pt = int(init_line_f_node.split()[0])
-    vertices = numpy.zeros(6 * nbr_pt)
-    UI.vprint(1, "-> Loading of the mesh computed by Triangle4XP.")
-    for i in range(0, nbr_pt):
-        vertices[6 * i : 6 * i + 6] = [
-            float(x) for x in f_node.readline().split()[1:7]
-        ]
-    end_line_f_node = f_node.readline()
-    f_node.close()
-    UI.vprint(1, "-> Post processing of altitudes according to vector data")
-    f_ele = open(FNAMES.output_ele_file(tile), "r")
-    nbr_tri = int(f_ele.readline().split()[0])
-    water_tris = set()
-    sea_tris = set()
-    interp_alt_tris = set()
-    for i in range(nbr_tri):
-        line = f_ele.readline()
-        # triangle attributes are powers of 2, except for the dummy attributed
-        # which doesn't require post-treatment
-        if line[-2] == "0":
-            continue
-        (v1, v2, v3, attr) = [int(x) - 1 for x in line.split()[1:5]]
-        attr += 1
-        if attr >= dico_attributes["INTERP_ALT"]:
-            interp_alt_tris.add((v1, v2, v3))
-        elif attr & dico_attributes["SEA"]:
-            sea_tris.add((v1, v2, v3))
-        elif (
-            attr & dico_attributes["WATER"]
-            or attr & dico_attributes["SEA_EQUIV"]
-        ):
-            water_tris.add((v1, v2, v3))
+    f_ele = None
+    try:
+        init_line_f_node = f_node.readline()
+        nbr_pt = int(init_line_f_node.split()[0])
+        vertices = numpy.zeros(6 * nbr_pt)
+        UI.vprint(1, "-> Loading of the mesh computed by Triangle4XP.")
+        for i in range(0, nbr_pt):
+            vertices[6 * i : 6 * i + 6] = [
+                float(x) for x in f_node.readline().split()[1:7]
+            ]
+        end_line_f_node = f_node.readline()
+        f_node.close()
+        UI.vprint(1, "-> Post processing of altitudes according to vector data")
+        f_ele = open(FNAMES.output_ele_file(tile), "r")
+        nbr_tri = int(f_ele.readline().split()[0])
+        water_tris = set()
+        sea_tris = set()
+        interp_alt_tris = set()
+        for i in range(nbr_tri):
+            line = f_ele.readline()
+            # triangle attributes are powers of 2, except for the dummy attributed
+            # which doesn't require post-treatment
+            if line[-2] == "0":
+                continue
+            (v1, v2, v3, attr) = [int(x) - 1 for x in line.split()[1:5]]
+            attr += 1
+            if attr >= dico_attributes["INTERP_ALT"]:
+                interp_alt_tris.add((v1, v2, v3))
+            elif attr & dico_attributes["SEA"]:
+                sea_tris.add((v1, v2, v3))
+            elif (
+                attr & dico_attributes["WATER"]
+                or attr & dico_attributes["SEA_EQUIV"]
+            ):
+                water_tris.add((v1, v2, v3))
+    except (ValueError, IndexError):
+        UI.lvprint(
+            0,
+            "ERROR / ERREUR: mesh output file for this tile is truncated"
+            " or corrupted. Triangle4XP was probably interrupted."
+            " -> Rerun step 2 (Triangulation) for this tile. | Le fichier"
+            " mesh de cette tuile est tronque ou corrompu. Triangle4XP a"
+            " probablement ete interrompu. -> Relancez l'etape 2"
+            " (Triangulation) pour cette tuile.",
+        )
+        UI.red_flag = True
+        try:
+            f_node.close()
+        except Exception:
+            pass
+        try:
+            if f_ele is not None:
+                f_ele.close()
+        except Exception:
+            pass
+        return 0
     if tile.water_smoothing:
         UI.vprint(1, "   Smoothing inland water.")
         for j in range(tile.water_smoothing):

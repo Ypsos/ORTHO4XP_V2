@@ -762,6 +762,31 @@ class Tile:
             custom_build_dir = ""
         # --- FIN CORRECTION ROLAND ---
 
+        # --- DEBUT CORRECTION ROLAND : STOP RACINE X-PLANE ---
+        # Si l'utilisateur pointe la RACINE X-Plane (dossier qui contient
+        # lui-meme un sous-dossier "Custom Scenery") au lieu du sous-dossier
+        # "Custom Scenery", la tuile finirait a un endroit inexploitable par
+        # X-Plane apres un build complet inutile. On refuse : on vide le champ
+        # (la tuile ira dans le dossier Ortho4XP racine, comme pour le Desktop)
+        # et on previent l'utilisateur, sans rien deviner a sa place.
+        if custom_build_dir:
+            _p = custom_build_dir.rstrip("/")
+            if (
+                os.path.isdir(os.path.join(_p, "Custom Scenery"))
+                and os.path.basename(_p) != "Custom Scenery"
+            ):
+                UI.vprint(
+                    0,
+                    "ERROR / ERREUR: ce dossier est la racine X-Plane."
+                    " Pointez le champ vers son sous-dossier \"Custom"
+                    " Scenery\" (ou laissez vide pour stocker dans"
+                    " Ortho4XP). | This is the X-Plane root folder. Point"
+                    " the field to its \"Custom Scenery\" subfolder (or"
+                    " leave empty to store in Ortho4XP).",
+                )
+                custom_build_dir = ""
+        # --- FIN CORRECTION ROLAND ---
+
         self.lat = lat
         self.lon = lon
         self.custom_build_dir = custom_build_dir
@@ -1093,13 +1118,32 @@ class Ortho4XP_Config(tk.Toplevel):
         row += 1
         self._app_title = tk.Label(
             self.frame_cfg,
-            text=_L("Application ", "Application "),
+            text=_L("Application  *", "Application  *"),
             bg="#3b5b49",
             fg="#e8f0ec",
             anchor=W,
             font="TKFixedFont 14",
         )
         self._app_title.grid(row=row, column=0, columnspan=4, pady=10, sticky=N + S + E + W)
+        row += 1
+        # Legende de l'astérisque, placee sous « Application » : explique que la
+        # rubrique marquee d'un « * » est propre au mode selectionne.
+        self._app_legend = tk.Label(
+            self.frame_cfg,
+            text=_L(
+                "*  Rubriques propres au mode selectionne "
+                "(grisees dans l'autre mode lorsqu'elles ne s'appliquent pas)",
+                "*  Sections specific to the selected mode "
+                "(greyed in the other mode when they do not apply)",
+            ),
+            bg="#3b5b49",
+            fg="#9fb5ab",
+            anchor=W,
+            font="TKFixedFont 11",
+        )
+        self._app_legend.grid(
+            row=row, column=0, columnspan=6, padx=2, pady=(0, 6), sticky=W
+        )
         row += 1
 
         l = ceil((len(gui_app_vars_short)) / 4)
@@ -1367,12 +1411,13 @@ class Ortho4XP_Config(tk.Toplevel):
         _idle_font = "TKFixedFont 14"
         _bright = "#e8f0ec"
         _dim = "#7a938a"
+        # Rubriques communes aux 2 modes (Donnees vectorielles / Maillage /
+        # Masques / DSF-Imagerie) : en mode Global elles portent les valeurs
+        # par defaut des tuiles, en mode Tuile elles deviennent des surcharges.
+        # Elles sont donc TOUJOURS actives et ne doivent jamais etre grisees.
         for _lbl in getattr(self, "_tile_titles", []):
             try:
-                _lbl.configure(
-                    font=(_active_font if is_tile else _idle_font),
-                    fg=(_bright if is_tile else _dim),
-                )
+                _lbl.configure(font=_active_font, fg=_bright)
             except Exception:
                 pass
         _app_lbl = getattr(self, "_app_title", None)
@@ -1382,6 +1427,14 @@ class Ortho4XP_Config(tk.Toplevel):
                     font=(_idle_font if is_tile else _active_font),
                     fg=(_dim if is_tile else _bright),
                 )
+            except Exception:
+                pass
+        # La legende de l'astérisque suit le grisage du titre « Application » :
+        # grisee en mode Tuile (rubrique non concernee), claire en mode Global.
+        _app_legend = getattr(self, "_app_legend", None)
+        if _app_legend is not None:
+            try:
+                _app_legend.configure(fg=(_dim if is_tile else _bright))
             except Exception:
                 pass
         # Les boutons de chaque rubrique suivent le ton de leur titre :
@@ -1406,7 +1459,9 @@ class Ortho4XP_Config(tk.Toplevel):
                     )
                 except Exception:
                     pass
-        _style_btns(getattr(self, "_tile_field_btns", []), is_tile)
+        # Rubriques communes : boutons toujours en clair (jamais grisees).
+        _style_btns(getattr(self, "_tile_field_btns", []), True)
+        # Rubrique Application : propre au mode Global -> grisee en mode Tuile.
         _style_btns(getattr(self, "_app_field_btns", []), not is_tile)
 
     def _tile_cfg_info(self):
@@ -1454,7 +1509,14 @@ class Ortho4XP_Config(tk.Toplevel):
                     if var not in self.v_:
                         continue
                     v = self.v_[var]
-                    if hasattr(v, "set"):
+                    # Le provider (default_website) et le ZL (default_zl)
+                    # sont des choix de la fenetre PRINCIPALE (variable
+                    # partagee). L'outil de config ne doit JAMAIS les
+                    # ecraser en chargeant un cfg (idem
+                    # load_interface_from_variables qui les exclut).
+                    if hasattr(v, "set") and var not in (
+                        "default_website", "default_zl"
+                    ):
                         v.set(value)
                 except Exception:
                     if "zone_list.append" in line:
@@ -1491,7 +1553,14 @@ class Ortho4XP_Config(tk.Toplevel):
                     if var not in self.v_:
                         continue
                     v = self.v_[var]
-                    if hasattr(v, "set"):
+                    # Le provider (default_website) et le ZL (default_zl)
+                    # sont des choix de la fenetre PRINCIPALE (variable
+                    # partagee). L'outil de config ne doit JAMAIS les
+                    # ecraser en chargeant un cfg (idem
+                    # load_interface_from_variables qui les exclut).
+                    if hasattr(v, "set") and var not in (
+                        "default_website", "default_zl"
+                    ):
                         v.set(value)
                 except Exception:
                     pass
@@ -1632,7 +1701,13 @@ class Ortho4XP_Config(tk.Toplevel):
                     UI.vprint(2, "load_tile_cfg: unknown var", var, "- skipped")
                     continue
                 v = self.v_[var]
-                if hasattr(v, "set"):
+                # Le provider (default_website) et le ZL (default_zl) sont
+                # des choix de la fenetre PRINCIPALE (variable partagee).
+                # L'outil de config ne doit JAMAIS les ecraser en chargeant
+                # un cfg (idem load_interface_from_variables qui les exclut).
+                if hasattr(v, "set") and var not in (
+                    "default_website", "default_zl"
+                ):
                     v.set(value)
                 loaded.append(var)
             except Exception as e:
@@ -1737,7 +1812,13 @@ class Ortho4XP_Config(tk.Toplevel):
                     UI.vprint(2, "load_global_cfg: unknown var", var, "- skipped")
                     continue
                 v = self.v_[var]
-                if hasattr(v, "set"):
+                # Le provider (default_website) et le ZL (default_zl) sont
+                # des choix de la fenetre PRINCIPALE (variable partagee).
+                # L'outil de config ne doit JAMAIS les ecraser en chargeant
+                # un cfg (idem load_interface_from_variables qui les exclut).
+                if hasattr(v, "set") and var not in (
+                    "default_website", "default_zl"
+                ):
                     v.set(value)
                 loaded.append(var)
             except:

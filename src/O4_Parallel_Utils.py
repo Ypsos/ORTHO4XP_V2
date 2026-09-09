@@ -1,5 +1,6 @@
 import O4_UI_Utils as UI
 import threading
+import traceback
 
 
 ################################################################################
@@ -20,7 +21,23 @@ class parallel_worker(threading.Thread):
                 except:
                     pass
                 return 1
-            self._success[0] = self._task(*args) and self._success[0]
+            # Filet de securite : une exception non prevue dans une tache
+            # ne doit jamais tuer le worker en silence (build 'reussi'
+            # avec des taches non faites). On logue la trace, on pose
+            # red_flag et success=0 pour un arret propre du pipeline.
+            try:
+                self._success[0] = self._task(*args) and self._success[0]
+            except Exception:
+                UI.lvprint(
+                    0,
+                    "ERROR / ERREUR: unhandled exception in a parallel"
+                    " task -> pipeline aborted. | Exception non geree"
+                    " dans une tache parallele -> pipeline arrete.",
+                )
+                UI.vprint(2, traceback.format_exc())
+                self._success[0] = 0
+                UI.red_flag = True
+                return 0
             if self._progress:
                 self._progress["done"] += 1
                 UI.progress_bar(

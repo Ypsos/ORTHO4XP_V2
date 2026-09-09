@@ -479,7 +479,7 @@ def record_water_tris(tile):
         for i in range(0, 2):  # skip 2 lines
             f_mesh.readline()
         nbr_tri_in = int(f_mesh.readline())  # read nbr of tris
-        step_stones = nbr_tri_in // 100
+        step_stones = max(1, nbr_tri_in // 100)
         percent = -1
         UI.vprint(
             2,
@@ -494,9 +494,34 @@ def record_water_tris(tile):
                 if UI.red_flag:
                     UI.exit_message_and_bottom_line()
                     return 0
-            (n1, n2, n3, tri_type) = [
-                int(x) - 1 for x in f_mesh.readline().split()[:4]
-            ]
+            _tri_fields = f_mesh.readline().split()
+            try:
+                (n1, n2, n3, tri_type) = [
+                    int(x) - 1 for x in _tri_fields[:4]
+                ]
+            except (ValueError, IndexError):
+                UI.lvprint(
+                    0,
+                    "ERROR / ERREUR: mesh file",
+                    mesh_file_name,
+                    "is truncated or corrupted (invalid triangle"
+                    " line). Mask building aborted to avoid"
+                    " producing a wrong mask. -> Regenerate this"
+                    " tile's mesh (step 2, Triangulation), then"
+                    " rerun the masks step (2.5). | Le fichier mesh"
+                    " est tronque ou corrompu (ligne de triangle"
+                    " invalide). Calcul des masques interrompu pour"
+                    " eviter un masque faux. -> Regenerez le mesh de"
+                    " cette tuile (etape 2, Triangulation), puis"
+                    " relancez l'etape masks (2.5).",
+                )
+                UI.red_flag = True
+                try:
+                    f_mesh.close()
+                except Exception:
+                    pass
+                UI.exit_message_and_bottom_line()
+                return 0
             tri_type += 1
             if (
                 (not tri_type)
@@ -616,7 +641,7 @@ def record_water_tris(tile):
             for i in range(0, 2 * nbr_pt_in + 5):
                 f_mesh.readline()
             nbr_tri_in = int(f_mesh.readline())  # read nbr of tris
-            step_stones = nbr_tri_in // 100
+            step_stones = max(1, nbr_tri_in // 100)
             percent = -1
             for i in range(0, nbr_tri_in):
                 if i % step_stones == 0:
@@ -625,9 +650,34 @@ def record_water_tris(tile):
                     if UI.red_flag:
                         UI.exit_message_and_bottom_line()
                         return 0
-                (n1, n2, n3, tri_type) = [
-                    int(x) - 1 for x in f_mesh.readline().split()[:4]
-                ]
+                _tri_fields = f_mesh.readline().split()
+                try:
+                    (n1, n2, n3, tri_type) = [
+                        int(x) - 1 for x in _tri_fields[:4]
+                    ]
+                except (ValueError, IndexError):
+                    UI.lvprint(
+                        0,
+                        "ERROR / ERREUR: mesh file",
+                        mesh_file_name,
+                        "is truncated or corrupted (invalid triangle"
+                        " line). Mask building aborted to avoid"
+                        " producing a wrong mask. -> Regenerate this"
+                        " tile's mesh (step 2, Triangulation), then"
+                        " rerun the masks step (2.5). | Le fichier mesh"
+                        " est tronque ou corrompu (ligne de triangle"
+                        " invalide). Calcul des masques interrompu pour"
+                        " eviter un masque faux. -> Regenerez le mesh de"
+                        " cette tuile (etape 2, Triangulation), puis"
+                        " relancez l'etape masks (2.5).",
+                    )
+                    UI.red_flag = True
+                    try:
+                        f_mesh.close()
+                    except Exception:
+                        pass
+                    UI.exit_message_and_bottom_line()
+                    return 0
                 tri_type += 1
                 if not (tri_type & has_water) == 1:
                     continue
