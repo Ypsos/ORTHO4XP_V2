@@ -83,56 +83,7 @@ def _tile_folder(tile):
 # Algorithme : inpainting pixels mer clairs + HDR cross blend jointure
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _scan_sea_neighbors(ref_jpg_path, til_x_left, til_y_top, zl_str):
-    """Retourne {'N','S','E','W': chemin_jpg_voisin} pour les dalles adjacentes
-    (± pas de la grille) présentes dans le MÊME dossier provider que la dalle
-    de référence. Lecture disque uniquement — ZÉRO réseau. Pas de voisin dans
-    une direction → clé absente (fallback géré par fill_sea_nodata). Le pas de
-    grille est déduit des noms de fichiers (défaut 16).
-
-    Convention Ortho4XP : til_y croît vers le SUD, til_x vers l'EST.
-    Note : ces voisins servent UNIQUEMENT de réservoir de mer à cloner ; ils ne
-    sont jamais collés dans la sortie (la dalle A est recadrée à la fin).
-    """
-    res = {}
-    try:
-        _dir = os.path.dirname(ref_jpg_path)
-        if not os.path.isdir(_dir):
-            return res
-        _pos = {}
-        _xs = []
-        for _fn in os.listdir(_dir):
-            if not _fn.lower().endswith(".jpg"):
-                continue
-            if zl_str not in _fn:
-                continue
-            _pp = _fn.split("_")
-            if len(_pp) < 2:
-                continue
-            try:
-                _fy = int(_pp[0]); _fx = int(_pp[1])
-            except ValueError:
-                continue
-            _pos[(_fy, _fx)] = os.path.join(_dir, _fn)
-            _xs.append(_fx)
-        _step = 16
-        if len(_xs) > 1:
-            _su = sorted(set(_xs))
-            _diffs = [b - a for a, b in zip(_su, _su[1:]) if b - a > 0]
-            if _diffs:
-                _step = min(_diffs)
-        ty = int(til_y_top); tx = int(til_x_left)
-        _cand = {'N': (ty - _step, tx), 'S': (ty + _step, tx),
-                 'W': (ty, tx - _step), 'E': (ty, tx + _step)}
-        for _d, _k in _cand.items():
-            if _k in _pos:
-                res[_d] = _pos[_k]
-    except Exception:
-        pass
-    return res
-
-
-def fill_sea_nodata(jpg_path, sea_mask=None, neighbors=None):
+def fill_sea_nodata(jpg_path, sea_mask=None):
     """
     Remplit la zone nodata (hors couverture provider) d'un JPG marin.
     Cas 1 uniquement — v73 (05 juillet 2026), geste GIMP réel de Roland,
@@ -182,80 +133,6 @@ def fill_sea_nodata(jpg_path, sea_mask=None, neighbors=None):
         img  = Image.open(jpg_path).convert('RGB')
         arr  = numpy.array(img, dtype=numpy.float32)
         H, W = arr.shape[:2]
-
-        # ── Bordage voisins on-disk (Temps 1) ────────────────────────────────
-        # Donne au tampon aligné de la VRAIE mer à cloner sur les bords où A
-        # n'en a pas, et cale la médiane/pool de mer sur la mer voisine (→ la
-        # terre sombre est alors EXCLUE du pool, plus de terre dupliquée).
-        # BANDES FINES uniquement — jamais de mosaïque pleine (leçon perf).
-        # Les bandes ne sont qu'un réservoir de source : la dalle A est
-        # recadrée à la fin. Sans voisin utilisable → no-op STRICT (sortie
-        # identique au comportement d'origine).
-        _pt = _pb = _pl = _pr = 0
-        _strip_px = None          # réservoir de mer voisine (référence robuste)
-        if neighbors:
-            _PAD = max(48, int(0.06 * max(H, W)))
-
-            def _load_strip(_p, _side):
-                try:
-                    if not _p or not os.path.isfile(_p):
-                        return None
-                    _na = numpy.array(Image.open(_p).convert('RGB'),
-                                      dtype=numpy.float32)
-                    if _side in ('N', 'S') and _na.shape[1] != W:
-                        return None
-                    if _side in ('E', 'W') and _na.shape[0] != H:
-                        return None
-                    if _side == 'N':
-                        return _na[-_PAD:, :, :]
-                    if _side == 'S':
-                        return _na[:_PAD, :, :]
-                    if _side == 'W':
-                        return _na[:, -_PAD:, :]
-                    if _side == 'E':
-                        return _na[:, :_PAD, :]
-                except Exception:
-                    return None
-                return None
-
-            _sN = _load_strip(neighbors.get('N'), 'N')
-            _sS = _load_strip(neighbors.get('S'), 'S')
-            _sW = _load_strip(neighbors.get('W'), 'W')
-            _sE = _load_strip(neighbors.get('E'), 'E')
-            _pt = _PAD if _sN is not None else 0
-            _pb = _PAD if _sS is not None else 0
-            _pl = _PAD if _sW is not None else 0
-            _pr = _PAD if _sE is not None else 0
-            if (_pt or _pb or _pl or _pr):
-                arr = numpy.pad(arr, ((_pt, _pb), (_pl, _pr), (0, 0)),
-                                mode='edge')
-                if _pt:
-                    arr[:_pt, _pl:_pl + W, :] = _sN
-                if _pb:
-                    arr[_pt + H:_pt + H + _pb, _pl:_pl + W, :] = _sS
-                if _pl:
-                    arr[_pt:_pt + H, :_pl, :] = _sW
-                if _pr:
-                    arr[_pt:_pt + H, _pl + W:_pl + W + _pr, :] = _sE
-                H, W = arr.shape[:2]
-                # Réservoir de mer = pixels des bandes voisines (référence de
-                # mer robuste, non polluée par la terre de A). Filtré luma<190.
-                _pcs = [s.reshape(-1, 3) for s in (_sN, _sS, _sW, _sE)
-                        if s is not None]
-                if _pcs:
-                    _sp = numpy.concatenate(_pcs, axis=0)
-                    _spl = (0.299 * _sp[:, 0] + 0.587 * _sp[:, 1]
-                            + 0.114 * _sp[:, 2])
-                    _sp = _sp[_spl < 190]
-                    if len(_sp) >= 500:
-                        _strip_px = _sp.astype(numpy.float32)
-
-        # Région de la dalle A dans le tableau (éventuellement) bordé.
-        _ay0, _ay1 = _pt, H - _pb
-        _ax0, _ax1 = _pl, W - _pr
-        _Aregion = numpy.zeros((H, W), dtype=bool)
-        _Aregion[_ay0:_ay1, _ax0:_ax1] = True
-
         R, G, B = arr[:, :, 0], arr[:, :, 1], arr[:, :, 2]
 
         # ── ÉTAPE 1 : détection (inchangée, validée) ───────────────────────────
@@ -287,7 +164,6 @@ def fill_sea_nodata(jpg_path, sea_mask=None, neighbors=None):
             return result
 
         no_data = big_components((raw_dark | raw_white) & flat)
-        no_data &= _Aregion          # ne combler QUE la dalle A, jamais les bandes
         if no_data.sum() == 0:
             return None
 
@@ -295,7 +171,6 @@ def fill_sea_nodata(jpg_path, sea_mask=None, neighbors=None):
         _halo_px = max(12, int(0.016 * max(H, W)))
         dist_to_nd = _dte_l(no_data == False)
         no_data = dist_to_nd <= _halo_px
-        no_data &= _Aregion          # le halo reste dans A (bandes = mer valide)
         valid   = ~no_data
         dist_to_nd = _dte_l(no_data == False)
 
@@ -305,21 +180,12 @@ def fill_sea_nodata(jpg_path, sea_mask=None, neighbors=None):
         ring = valid & (dist_to_nd < 2 * _ring_w) & (luma < 190)
         if ring.sum() < 200:
             ring = valid & (luma < 190)
-        if _strip_px is not None:
-            # Référence de mer prise dans les bandes voisines (vraie mer) →
-            # la terre sombre de A tombe alors hors du pool (dev élevé).
-            med = numpy.median(_strip_px, axis=0).astype(numpy.float32)
-            sig = numpy.array(
-                [max(6.0, 1.4826 * float(numpy.median(
-                    numpy.abs(_strip_px[:, c] - med[c])))) for c in range(3)],
-                dtype=numpy.float32)
-        else:
-            med = numpy.array([numpy.median(arr[:, :, c][ring]) for c in range(3)],
-                              dtype=numpy.float32)
-            sig = numpy.array(
-                [max(6.0, 1.4826 * float(numpy.median(
-                    numpy.abs(arr[:, :, c][ring] - med[c])))) for c in range(3)],
-                dtype=numpy.float32)
+        med = numpy.array([numpy.median(arr[:, :, c][ring]) for c in range(3)],
+                          dtype=numpy.float32)
+        sig = numpy.array(
+            [max(6.0, 1.4826 * float(numpy.median(
+                numpy.abs(arr[:, :, c][ring] - med[c])))) for c in range(3)],
+            dtype=numpy.float32)
         dev = numpy.max(
             numpy.abs(arr - med[None, None, :]) / sig[None, None, :], axis=2)
         pool = valid & (dev < 4.0) & (luma < 190)
@@ -538,8 +404,7 @@ def fill_sea_nodata(jpg_path, sea_mask=None, neighbors=None):
             noise = rng.randn(len(ys_b), 3).astype(numpy.float32) * 1.5
             filled[ys_b, xs_b] = base_col[None, :] + noise
 
-        return Image.fromarray(
-            numpy.clip(filled[_ay0:_ay1, _ax0:_ax1], 0, 255).astype(numpy.uint8))
+        return Image.fromarray(numpy.clip(filled, 0, 255).astype(numpy.uint8))
 
     except Exception as e:
         UI.vprint(2, f"   [SeaTex] fill_sea_nodata erreur : {e}")
@@ -659,9 +524,7 @@ def generate_sea_jpg(tile, til_x_left, til_y_top, zoomlevel, provider_code,
         if os.path.isfile(jpg_path):
             return jpg_path  # patch déjà généré — skip
 
-        _neighbors = _scan_sea_neighbors(
-            neighbor_jpg, int(til_x_left), int(til_y_top), str(int(zoomlevel)))
-        filled_img = fill_sea_nodata(neighbor_jpg, neighbors=_neighbors)
+        filled_img = fill_sea_nodata(neighbor_jpg)
         if filled_img is None:
             # Fabrication automatique des patches « à fabriquer » SUPPRIMÉE :
             # les zones no-data de couleur (gris/vert/bleu/marron) qui

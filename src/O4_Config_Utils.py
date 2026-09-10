@@ -770,7 +770,7 @@ class Tile:
         # (la tuile ira dans le dossier Ortho4XP racine, comme pour le Desktop)
         # et on previent l'utilisateur, sans rien deviner a sa place.
         if custom_build_dir:
-            _p = custom_build_dir.rstrip("/")
+            _p = custom_build_dir.rstrip("/\\")
             if (
                 os.path.isdir(os.path.join(_p, "Custom Scenery"))
                 and os.path.basename(_p) != "Custom Scenery"
@@ -792,7 +792,7 @@ class Tile:
         self.custom_build_dir = custom_build_dir
         self.grouped = (
             True
-            if (custom_build_dir and custom_build_dir[-1] != "/")
+            if (custom_build_dir and custom_build_dir[-1] not in ("/", "\\"))
             else False
         )
         self.build_dir = FNAMES.build_dir(lat, lon, custom_build_dir)

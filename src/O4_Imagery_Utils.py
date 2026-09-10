@@ -49,6 +49,7 @@ import subprocess
 import io
 import requests
 import queue
+import threading
 import random
 from math import ceil, log, tan, pi
 import numpy
@@ -1409,13 +1410,25 @@ def get_wmts_image(tilematrix, til_x, til_y, provider, http_session):
 ################################################################################
 
 ################################################################################
+# PIL Image.paste() n'est pas garanti thread-safe pour des ecritures
+# concurrentes sur une meme Image partagee. build_texture_from_tilbox()
+# lance jusqu'a max_threads workers qui collent tous dans le meme big_image.
+# Une collision de paste peut laisser un sous-carre a sa valeur par defaut
+# (noir "RGB") au lieu du contenu telecharge -> lignes/carres noirs alignes
+# sur la grille, aleatoires (disparaissent souvent au rebuild). On serialise
+# UNIQUEMENT le collage (rapide, en memoire), jamais le telechargement
+# (lent, reseau) : le benefice du parallelisme est conserve.
+_paste_lock = threading.Lock()
+
+
 def get_and_paste_wms_part(
     bbox, width, height, provider, big_image, x0, y0, http_session
 ):
     (success, small_image) = get_wms_image(
         bbox, width, height, provider, http_session
     )
-    big_image.paste(small_image, (x0, y0))
+    with _paste_lock:
+        big_image.paste(small_image, (x0, y0))
     return success
 
 
@@ -1429,10 +1442,13 @@ def get_and_paste_wmts_part(
     (success, small_image) = get_wmts_image(
         tilematrix, til_x, til_y, provider, http_session
     )
-    if not subt_size:
-        big_image.paste(small_image, (x0, y0))
-    else:
-        big_image.paste(small_image.resize(subt_size, Image.BICUBIC), (x0, y0))
+    with _paste_lock:
+        if not subt_size:
+            big_image.paste(small_image, (x0, y0))
+        else:
+            big_image.paste(
+                small_image.resize(subt_size, Image.BICUBIC), (x0, y0)
+            )
     return success
 
 
@@ -1605,6 +1621,25 @@ def build_texture_from_bbox_and_size(t_bbox, t_epsg, t_size, provider):
 ################################################################################
 
 ################################################################################
+def _jpeg_is_valid(path):
+    # Anti-cache-corrompu : un JPG present sur disque n'est reutilise que s'il
+    # est reellement OUVRABLE et non tronque. Sans ca, un fichier telecharge
+    # corrompu une fois (coupure reseau, disque plein, reponse vide du serveur)
+    # etait garde a vie et reutilise a chaque build -> artefacts qui
+    # "reviennent" apres rebuild, meme en supprimant le .dds final. Verification
+    # legere (en-tetes / integrite), sans decoder tous les pixels ; ne juge PAS
+    # le contenu (une vraie mer sombre reste valide). En cas de doute -> False
+    # -> le fichier sera retelecharge, jamais un build casse.
+    try:
+        if not os.path.isfile(path) or os.path.getsize(path) == 0:
+            return False
+        with Image.open(path) as _im:
+            _im.verify()
+        return True
+    except Exception:
+        return False
+
+
 def download_jpeg_ortho(
     file_dir, file_name, til_x_left, til_y_top, zoomlevel, provider_code,
     super_resol_factor=1,
@@ -1771,7 +1806,7 @@ def build_jpeg_ortho(
                     tile.lat, tile.lon, true_zl,
                     providers_dict[rlayer["layer_code"]],
                 )
-                if not os.path.isfile(
+                if not _jpeg_is_valid(
                     os.path.join(true_file_dir, true_file_name)
                 ):
                     if rlayer["layer_code"] == "PATCH":
@@ -1837,7 +1872,7 @@ def build_jpeg_ortho(
         file_dir = FNAMES.jpeg_file_dir_from_attributes(
             tile.lat, tile.lon, zoomlevel, providers_dict[provider_code]
         )
-        if not os.path.isfile(os.path.join(file_dir, file_name)):
+        if not _jpeg_is_valid(os.path.join(file_dir, file_name)):
             UI.vprint(1, "   Downloading missing orthophoto " + file_name)
             if not download_jpeg_ortho(
                 file_dir, file_name, *texture_attributes
@@ -1912,7 +1947,7 @@ def build_combined_ortho(
         true_file_dir = FNAMES.jpeg_file_dir_from_attributes(
             tile.lat, tile.lon, true_zl, providers_dict[rlayer["layer_code"]]
         )
-        if not os.path.isfile(os.path.join(true_file_dir, true_file_name)):
+        if not _jpeg_is_valid(os.path.join(true_file_dir, true_file_name)):
             UI.vprint(
                 1,
                 "   Downloading missing orthophoto "
