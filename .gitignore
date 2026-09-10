@@ -95,6 +95,7 @@ Ortho4XP.cfg
 !Utils/*.png
 !Utils/**/*.png
 !BanniereGithub.png
+!images/**/*.png
 
 # ── Fichiers mesh et DSF (données de tuiles) ────────────────
 *.mesh
